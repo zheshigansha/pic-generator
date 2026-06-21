@@ -16,7 +16,7 @@ interface UploadedItem {
 }
 
 export default function UploadPage() {
-  const { project, createNewProject } = useProject()
+  const { project, loading: projectLoading, createNewProject } = useProject()
   const [files, setFiles] = useState<{ file: File; preview: string }[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([])
@@ -26,7 +26,7 @@ export default function UploadPage() {
   // Ensure project exists
   useEffect(() => {
     const initProject = async () => {
-      if (!project) {
+      if (!projectLoading && !project) {
         try {
           await createNewProject('新项目')
         } catch (e) {
@@ -35,7 +35,7 @@ export default function UploadPage() {
       }
     }
     initProject()
-  }, [])
+  }, [projectLoading, project])
 
   // Load items when project changes
   useEffect(() => {
