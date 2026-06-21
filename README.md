@@ -116,9 +116,37 @@ FLUX_BASE_URL=https://api.kie.ai
 - 发布平台选择 (Facebook/Instagram/下载)
 - 下载功能 (生成包含链接的文本文件)
 
+## Supabase 集成
+
+### 1. 获取 Supabase API 密钥
+
+1. 登录 [Supabase](https://supabase.com/dashboard)
+2. 进入你的项目 → **Settings** → **API**
+3. 复制 **anon public** key 到 `.env.local` 的 `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+
+### 2. 运行数据库迁移
+
+在 Supabase Dashboard → **SQL Editor** 中运行以下步骤：
+
+1. 创建新查询，粘贴 `supabase/migrations/001_initial_schema.sql` 的内容
+2. 点击 **Run** 执行
+
+这将创建所有必要的表：
+- `projects` - 项目
+- `clothing_items` - 上传的图片
+- `product_analysis` - 产品分析结果
+- `scene_configs` - 场景配置
+- `generated_images` - 生成的图片
+- `selected_images` - 选择的图片
+
+### 3. 启用 API
+
+确保 Table Policies 允许匿名访问（迁移脚本已配置）。
+
 ## 待完成功能
 
-- [ ] Supabase 集成 (替换 localStorage)
+- [x] Supabase 集成 (数据库 schema 已创建，等待配置 anon key)
+- [ ] 将页面接入 Supabase (替换 localStorage 调用)
 - [ ] Facebook/Instagram API 集成
 - [ ] 文案自动生成
 - [ ] 封面图单独生成
@@ -153,18 +181,29 @@ vision-fit-pro/
 │   │   ├── output/page.tsx       # 输出页
 │   │   └── api/
 │   │       ├── analyze/          # 单图分析 API
-│   │       ├── analyze-batch/     # 批量综合分析 API
+│   │       ├── analyze-batch/    # 批量综合分析 API
 │   │       └── generate/         # 图像生成 API
 │   ├── components/
 │   │   ├── StepNav.tsx           # 步骤导航组件
-│   │   └── WizardLayout.tsx     # 布局组件
+│   │   └── WizardLayout.tsx      # 布局组件
 │   └── lib/
-│       └── storage.ts             # localStorage 封装
+│       ├── storage.ts            # localStorage 封装 (MVP)
+│       ├── supabase.ts           # Supabase 客户端
+│       ├── db.ts                 # Supabase 数据库操作
+│       └── database.types.ts     # 数据库类型定义
+├── supabase/
+│   └── migrations/
+│       └── 001_initial_schema.sql # 数据库迁移脚本
 ├── .env.local                    # 环境变量
 └── package.json
 ```
 
 ## 版本记录
+
+### v0.2.0 (2026-06-21)
+- 添加 Supabase 数据库 schema
+- 创建 Supabase 客户端和数据库操作模块
+- 准备 Supabase 集成（等待配置 anon key）
 
 ### v0.1.0 (2026-06-21)
 - 完成基础框架搭建
