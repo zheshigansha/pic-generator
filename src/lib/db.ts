@@ -71,6 +71,19 @@ export async function getClothingItems(projectId: string) {
   return data || []
 }
 
+export async function getClothingItemsWithAnalysis(projectId: string) {
+  const [items, analysis] = await Promise.all([
+    getClothingItems(projectId),
+    getProductAnalysis(projectId),
+  ])
+
+  // Attach analysis to each item (analysis is project-level, same for all items)
+  return items.map(item => ({
+    ...item,
+    analysis: analysis || undefined,
+  }))
+}
+
 export async function deleteClothingItem(id: string) {
   const { error } = await supabase
     .from('clothing_items')

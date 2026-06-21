@@ -1,26 +1,57 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-import { saveClothingItem, getClothingItems, deleteClothingItem, ClothingItem } from '@/lib/storage'
+import { useProject } from '@/components/ProjectContext'
+import { saveClothingItems, getClothingItemsWithAnalysis, deleteClothingItem } from '@/lib/db'
 
 const MAX_IMAGES = 20
 
+interface UploadedItem {
+  id: string
+  name: string
+  image_data: string
+  analysis?: any
+}
+
 export default function UploadPage() {
+  const { project, createNewProject } = useProject()
   const [files, setFiles] = useState<{ file: File; preview: string }[]>([])
   const [uploading, setUploading] = useState(false)
-  const [uploadedItems, setUploadedItems] = useState<ClothingItem[]>([])
+  const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([])
+  const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const loadItems = useCallback(() => {
-    setUploadedItems(getClothingItems())
+  // Ensure project exists
+  useEffect(() => {
+    const initProject = async () => {
+      if (!project) {
+        try {
+          await createNewProject('新项目')
+        } catch (e) {
+          console.error('Failed to create project:', e)
+        }
+      }
+    }
+    initProject()
   }, [])
 
-  // Load on mount
-  useState(() => {
+  // Load items when project changes
+  useEffect(() => {
+    const loadItems = async () => {
+      if (!project) return
+      try {
+        const items = await getClothingItemsWithAnalysis(project.id)
+        setUploadedItems(items)
+      } catch (e) {
+        console.error('Failed to load items:', e)
+      } finally {
+        setLoading(false)
+      }
+    }
     loadItems()
-  })
+  }, [project])
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files
@@ -55,29 +86,30 @@ export default function UploadPage() {
   }
 
   const handleUpload = async () => {
-    if (files.length === 0) return
+    if (files.length === 0 || !project) return
 
     setUploading(true)
 
     try {
-      for (const { file, preview } of files) {
-        const response = await fetch(preview)
-        const blob = await response.blob()
-        const reader = new FileReader()
+      const imageDataList = await Promise.all(
+        files.map(({ file, preview }) =>
+          new Promise<{ imageData: string; fileName: string }>((resolve) => {
+            const reader = new FileReader()
+            reader.onload = () => {
+              resolve({ imageData: reader.result as string, fileName: file.name })
+            }
+            reader.readAsDataURL(file)
+          })
+        )
+      )
 
-        await new Promise<void>((resolve) => {
-          reader.onload = () => {
-            const base64 = reader.result as string
-            saveClothingItem(base64, file.name)
-            resolve()
-          }
-          reader.readAsDataURL(blob)
-        })
-      }
-
+      await saveClothingItems(project.id, imageDataList)
       alert(`上传成功 ${files.length} 张图片！`)
       setFiles([])
-      loadItems()
+
+      // Reload items
+      const items = await getClothingItemsWithAnalysis(project.id)
+      setUploadedItems(items)
     } catch (error) {
       console.error('Upload error:', error)
       alert('上传失败')
@@ -86,10 +118,14 @@ export default function UploadPage() {
     }
   }
 
-  const handleDelete = (id: string) => {
-    if (confirm('确定删除这张图片吗？')) {
-      deleteClothingItem(id)
-      loadItems()
+  const handleDelete = async (id: string) => {
+    if (!confirm('确定删除这张图片吗？')) return
+    try {
+      await deleteClothingItem(id)
+      setUploadedItems(prev => prev.filter(item => item.id !== id))
+    } catch (e) {
+      console.error('Delete error:', e)
+      alert('删除失败')
     }
   }
 
@@ -199,7 +235,11 @@ export default function UploadPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">已上传图片（{uploadedCount}张）</h2>
               <button
-                onClick={loadItems}
+                onClick={async () => {
+                  if (!project) return
+                  const items = await getClothingItemsWithAnalysis(project.id)
+                  setUploadedItems(items)
+                }}
                 className="text-sm text-gray-400 hover:text-white transition-colors"
               >
                 ↻ 刷新
@@ -209,7 +249,7 @@ export default function UploadPage() {
               {uploadedItems.map((item) => (
                 <div key={item.id} className="relative group">
                   <img
-                    src={item.imageData}
+                    src={item.image_data}
                     alt={item.name}
                     className="w-full aspect-square object-cover rounded-lg border border-gray-600"
                   />

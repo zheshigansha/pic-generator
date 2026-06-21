@@ -3,58 +3,68 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-import { getClothingItems, ClothingItem } from '@/lib/storage'
+import { useProject } from '@/components/ProjectContext'
+import { getClothingItems, getProductAnalysis, getSceneConfigs, saveGeneratedImages } from '@/lib/db'
+import type { SceneConfig, GeneratedImage } from '@/lib/database.types'
 
-interface SceneConfig {
+interface ClothingItem {
   id: string
   name: string
-  imagesCount: number
-  season: string
-  subject: string
-  environment: string
-  surroundings: string[]
-  customPrompt: string
+  image_data: string
 }
 
-interface GeneratedImage {
-  url: string
-  revisedPrompt: string
-  sceneId: string
-  sceneName: string
+interface Analysis {
+  product_type: string
+  color: string
+  material: string
+  style: string
+  description: string
 }
-
-const SCENE_STORAGE_KEY = 'visionfit_scene_configs'
-const GENERATED_STORAGE_KEY = 'visionfit_generated_images'
 
 export default function GeneratePage() {
+  const { project } = useProject()
   const [items, setItems] = useState<ClothingItem[]>([])
+  const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [scenes, setScenes] = useState<SceneConfig[]>([])
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0, message: '' })
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = getClothingItems()
-    setItems(stored)
+    const loadData = async () => {
+      if (!project) return
+      try {
+        const [loadedItems, loadedAnalysis, loadedScenes] = await Promise.all([
+          getClothingItems(project.id),
+          getProductAnalysis(project.id),
+          getSceneConfigs(project.id),
+        ])
 
-    const savedScenes = localStorage.getItem(SCENE_STORAGE_KEY)
-    if (savedScenes) {
-      setScenes(JSON.parse(savedScenes))
+        setItems(loadedItems)
+        if (loadedAnalysis) {
+          setAnalysis({
+            product_type: loadedAnalysis.product_type || '',
+            color: loadedAnalysis.color || '',
+            material: loadedAnalysis.material || '',
+            style: loadedAnalysis.style || '',
+            description: loadedAnalysis.description || '',
+          })
+        }
+        setScenes(loadedScenes)
+      } catch (e) {
+        console.error('Failed to load data:', e)
+      } finally {
+        setLoading(false)
+      }
     }
+    loadData()
+  }, [project])
 
-    const savedImages = localStorage.getItem(GENERATED_STORAGE_KEY)
-    if (savedImages) {
-      setGeneratedImages(JSON.parse(savedImages))
-    }
-  }, [])
+  const selectedItem = items[0]
 
-  const selectedItem = items.find(i => i.analysis)
-
-  const buildPrompt = (item: ClothingItem, scene: SceneConfig): string => {
-    const a = item.analysis
-    if (!a) return ''
-
+  const buildPrompt = (a: Analysis, scene: SceneConfig): string => {
     const subjectMap: Record<string, string> = {
       '人': 'person',
       '女人': 'woman',
@@ -68,19 +78,15 @@ export default function GeneratePage() {
 
     let prompt = `Professional fashion photography of a ${subjectMap[scene.subject] || scene.subject} wearing `
 
-    // Product details from analysis
     prompt += `a ${a.color} ${a.material} ${a.product_type.toLowerCase()}. `
     prompt += `Style: ${a.style}. `
 
-    // Use AI description as base reference
     if (a.description) {
       prompt += `Product details: ${a.description} `
     }
 
-    // Season
     prompt += `Season: ${scene.season}. `
 
-    // Environment
     const envMap: Record<string, string> = {
       '室内': `${scene.customPrompt || 'indoor setting'}`,
       '户外': `${scene.customPrompt || 'outdoor setting'}`,
@@ -89,25 +95,18 @@ export default function GeneratePage() {
     }
     prompt += `Setting: ${envMap[scene.environment] || scene.customPrompt || 'fashion photography setting'}. `
 
-    // Surroundings
     if (scene.surroundings.length > 0) {
       prompt += `Environment elements: ${scene.surroundings.join(', ')}. `
     }
 
-    // Quality
     prompt += `High quality, realistic, natural lighting, full body shot, fashionable retail photography style.`
 
     return prompt
   }
 
   const handleGenerate = async () => {
-    if (!selectedItem || !selectedItem.analysis) {
-      alert('请先完成产品分析')
-      return
-    }
-
-    if (scenes.length === 0) {
-      alert('请先设计场景')
+    if (!analysis || scenes.length === 0) {
+      alert('请先完成产品分析和场景设计')
       return
     }
 
@@ -115,7 +114,6 @@ export default function GeneratePage() {
     setError(null)
     setGeneratedImages([])
 
-    // Calculate total images to generate
     const totalImages = scenes.reduce((sum, s) => sum + s.imagesCount, 0)
     let currentCount = 0
     const newImages: GeneratedImage[] = []
@@ -129,7 +127,7 @@ export default function GeneratePage() {
             message: `生成中: ${scene.name} (${i + 1}/${scene.imagesCount})`,
           })
 
-          const prompt = buildPrompt(selectedItem, scene)
+          const prompt = buildPrompt(analysis, scene)
 
           const response = await fetch('/api/generate', {
             method: 'POST',
@@ -155,8 +153,12 @@ export default function GeneratePage() {
         }
       }
 
+      // Save to Supabase
+      if (project) {
+        await saveGeneratedImages(project.id, newImages)
+      }
+
       setGeneratedImages(newImages)
-      localStorage.setItem(GENERATED_STORAGE_KEY, JSON.stringify(newImages))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate images')
       console.error('Generation error:', err)
@@ -164,6 +166,16 @@ export default function GeneratePage() {
       setGenerating(false)
       setProgress({ current: 0, total: 0, message: '' })
     }
+  }
+
+  if (loading) {
+    return (
+      <WizardLayout currentStep={4}>
+        <div className="flex items-center justify-center h-full">
+          <p className="text-gray-400">加载中...</p>
+        </div>
+      </WizardLayout>
+    )
   }
 
   if (items.length === 0) {
@@ -177,7 +189,7 @@ export default function GeneratePage() {
     )
   }
 
-  if (!selectedItem?.analysis) {
+  if (!analysis) {
     return (
       <WizardLayout currentStep={4}>
         <div className="flex flex-col items-center justify-center h-full text-center">
@@ -188,6 +200,8 @@ export default function GeneratePage() {
     )
   }
 
+  const totalImages = scenes.reduce((s, c) => s + c.imagesCount, 0)
+
   return (
     <WizardLayout currentStep={4}>
       <div className="max-w-6xl mx-auto">
@@ -195,7 +209,7 @@ export default function GeneratePage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white">生成图片</h1>
           <p className="text-gray-400 mt-1">
-            共 {scenes.length} 个场景，预计生成 {scenes.reduce((s, c) => s + c.imagesCount, 0)} 张图片
+            共 {scenes.length} 个场景，预计生成 {totalImages} 张图片
           </p>
         </div>
 
@@ -205,7 +219,7 @@ export default function GeneratePage() {
           <div className="col-span-3 bg-gray-800/50 rounded-lg p-4 border border-gray-700">
             <p className="text-xs text-gray-400 mb-2">产品</p>
             <img
-              src={selectedItem.imageData}
+              src={selectedItem.image_data}
               alt={selectedItem.name}
               className="w-full aspect-square object-cover rounded mb-2"
             />
