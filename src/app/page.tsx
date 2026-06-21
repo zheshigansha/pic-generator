@@ -1,65 +1,87 @@
-import Image from "next/image";
+import Link from 'next/link'
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+      {/* Header */}
+      <header className="border-b border-gray-700 bg-black/20 backdrop-blur-sm">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <h1 className="text-2xl font-bold">VisionFit Pro</h1>
+          <p className="text-sm text-gray-400">AI 服装模特图生成系统</p>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto px-6 py-12">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold mb-4">
+            上传 · 分析 · 生成 · 审核 · 发布
+          </h2>
+          <p className="text-xl text-gray-300">
+            将服装图片转换为专业模特图，一站式 AI 生成与发布
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Workflow Steps */}
+        <div className="grid md:grid-cols-5 gap-4 mb-12">
+          {[
+            { num: 1, name: '上传图片', desc: '上传服装多角度图', href: '/upload', color: 'blue' },
+            { num: 2, name: '产品分析', desc: 'AI 分析服装细节', href: '/analysis', color: 'purple' },
+            { num: 3, name: '场景设计', desc: '选择/设计场景', href: '/scene', color: 'yellow' },
+            { num: 4, name: '生成图片', desc: 'AI 生成模特图', href: '/generate', color: 'pink' },
+            { num: 5, name: '审核发布', desc: '选择并发布', href: '/review', color: 'green' },
+          ].map((step) => (
+            <div
+              key={step.num}
+              className={`bg-gray-800/50 rounded-xl p-5 border border-gray-700 hover:border-${step.color}-500 transition-colors text-center`}
+            >
+              <div className={`w-10 h-10 bg-${step.color}-600 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-3`}>
+                {step.num}
+              </div>
+              <h3 className="text-lg font-semibold mb-1">{step.name}</h3>
+              <p className="text-sm text-gray-400 mb-3">{step.desc}</p>
+              <Link
+                href={step.href}
+                className={`inline-block bg-${step.color}-600/20 hover:bg-${step.color}-600/30 text-${step.color}-400 px-4 py-1.5 rounded-lg text-sm transition-colors`}
+              >
+                进入 →
+              </Link>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick Info */}
+        <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700">
+          <h3 className="text-lg font-semibold mb-4">工作流程</h3>
+          <ol className="space-y-3 text-gray-300">
+            <li className="flex items-start gap-3">
+              <span className="text-blue-400 font-bold">1.</span>
+              <span>上传同一服装的多角度图片（最多20张）</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="text-purple-400 font-bold">2.</span>
+              <span>AI 分析服装细节（颜色、材质、款式、领型、袖长等），可手动调整</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="text-yellow-400 font-bold">3.</span>
+              <span>选择场景（咖啡厅、街道、办公室等），设置季节、环境、主体</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="text-pink-400 font-bold">4.</span>
+              <span>AI 根据配置生成多张模特图</span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="text-green-400 font-bold">5.</span>
+              <span>审核图片，选择封面，发布到 Facebook / Instagram 或下载</span>
+            </li>
+          </ol>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-700 mt-12 py-6 text-center text-gray-500 text-sm">
+        VisionFit Pro — AI 服装模特图生成系统
+      </footer>
     </div>
-  );
+  )
 }
