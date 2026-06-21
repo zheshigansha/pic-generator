@@ -81,8 +81,14 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
 export function useProject() {
   const context = useContext(ProjectContext)
+  // Return a safe default during SSR/prerendering
   if (!context) {
-    throw new Error('useProject must be used within ProjectProvider')
+    return {
+      project: null,
+      loading: true,
+      createNewProject: async () => { throw new Error('ProjectContext not initialized') },
+      refreshProject: async () => {},
+    }
   }
   return context
 }
