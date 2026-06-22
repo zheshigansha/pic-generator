@@ -3,82 +3,57 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-import { useProject } from '@/components/ProjectContext'
-import { getGeneratedImages, getSelectedImages, saveSelectedImages } from '@/lib/db'
-import type { GeneratedImage } from '@/lib/database.types'
+
+interface GeneratedImage {
+  url: string
+  revisedPrompt: string
+  sceneId: string
+  sceneName: string
+}
+
+const GENERATED_STORAGE_KEY = 'visionfit_generated_images'
+const SELECTED_STORAGE_KEY = 'visionfit_selected_images'
 
 export default function OutputPage() {
-  const { project } = useProject()
   const [images, setImages] = useState<GeneratedImage[]>([])
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [coverId, setCoverId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [coverIndex, setCoverIndex] = useState<number | null>(null)
   const [caption, setCaption] = useState('')
   const [platform, setPlatform] = useState<'facebook' | 'instagram' | 'download' | null>(null)
   const [publishing, setPublishing] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadData = async () => {
-      if (!project) return
-      try {
-        const [loadedImages, selection] = await Promise.all([
-          getGeneratedImages(project.id),
-          getSelectedImages(project.id),
-        ])
-        setImages(loadedImages)
-        if (selection) {
-          setSelectedIds(selection.selected_image_ids || [])
-          setCoverId(selection.cover_image_id || null)
-          setCaption(selection.caption || '')
-        }
-      } catch (e) {
-        console.error('Failed to load data:', e)
-      } finally {
-        setLoading(false)
-      }
+    const savedImages = localStorage.getItem(GENERATED_STORAGE_KEY)
+    const savedSelection = localStorage.getItem(SELECTED_STORAGE_KEY)
+
+    if (savedImages) {
+      setImages(JSON.parse(savedImages))
     }
-    loadData()
-  }, [project])
 
-  const selectedImages = selectedIds
-    .map(id => images.find(img => img.id === id))
-    .filter((img): img is GeneratedImage => img !== undefined)
+    if (savedSelection) {
+      const { ids, coverIndex: ci } = JSON.parse(savedSelection)
+      setSelectedIds(ids)
+      setCoverIndex(ci)
+    }
+  }, [])
 
-  const coverImage = coverId
-    ? images.find(img => img.id === coverId)
-    : selectedImages[0]
+  const selectedImages = selectedIds.map(id => images[id]).filter(Boolean)
+  const coverImage = coverIndex !== null ? images[coverIndex] : selectedImages[0]
 
   const handlePublish = async () => {
     if (!platform || platform === 'download') return
 
     setPublishing(true)
 
-    // Save selection first
-    if (project) {
-      try {
-        await saveSelectedImages(project.id, selectedIds, coverId, caption)
-      } catch (e) {
-        console.error('Save error:', e)
-      }
-    }
-
-    // Simulate publish
+    // Simulate publish - in real implementation, call Facebook/Instagram API
     await new Promise(resolve => setTimeout(resolve, 2000))
 
     setPublishing(false)
     alert(`${platform === 'facebook' ? 'Facebook' : 'Instagram'} 发布功能开发中...`)
   }
 
-  const handleDownload = async () => {
-    // Save selection first
-    if (project) {
-      try {
-        await saveSelectedImages(project.id, selectedIds, coverId, caption)
-      } catch (e) {
-        console.error('Save error:', e)
-      }
-    }
-
+  const handleDownload = () => {
+    // Create a simple text file with image URLs
     const content = `VisionFit Pro - 图片输出\n${new Date().toLocaleDateString()}\n\n封面图:\n${coverImage?.url || '未设置'}\n\n选中图片:\n${selectedImages.map((img, i) => `${i + 1}. ${img.sceneName}\n   ${img.url}`).join('\n\n')}\n\n文案:\n${caption}`
 
     const blob = new Blob([content], { type: 'text/plain' })
@@ -88,16 +63,6 @@ export default function OutputPage() {
     a.download = `visionfit-output-${Date.now()}.txt`
     a.click()
     URL.revokeObjectURL(url)
-  }
-
-  if (loading) {
-    return (
-      <WizardLayout currentStep={5}>
-        <div className="flex items-center justify-center h-full">
-          <p className="text-gray-400">加载中...</p>
-        </div>
-      </WizardLayout>
-    )
   }
 
   if (images.length === 0) {

@@ -3,9 +3,15 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-import { useProject } from '@/components/ProjectContext'
-import { getClothingItems, saveProductAnalysis, getProductAnalysis } from '@/lib/db'
-import type { ProductAnalysis } from '@/lib/database.types'
+import { getClothingItems, updateItemAnalysis, ClothingItem } from '@/lib/storage'
+
+interface ProductAnalysis {
+  product_type: string
+  color: string
+  material: string
+  style: string
+  description: string
+}
 
 const defaultAnalysis: ProductAnalysis = {
   product_type: '',
@@ -15,14 +21,7 @@ const defaultAnalysis: ProductAnalysis = {
   description: '',
 }
 
-interface ClothingItem {
-  id: string
-  name: string
-  image_data: string
-}
-
 export default function AnalysisPage() {
-  const { project } = useProject()
   const [items, setItems] = useState<ClothingItem[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
@@ -31,43 +30,28 @@ export default function AnalysisPage() {
   const [editing, setEditing] = useState(false)
   const [saved, setSaved] = useState(false)
   const [batchAnalyzing, setBatchAnalyzing] = useState(false)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadData = async () => {
-      if (!project) return
-      try {
-        const loadedItems = await getClothingItems(project.id)
-        setItems(loadedItems)
-        if (loadedItems.length > 0 && !selectedId) {
-          setSelectedId(loadedItems[0].id)
-        }
-
-        const existingAnalysis = await getProductAnalysis(project.id)
-        if (existingAnalysis) {
-          setAnalysis({
-            product_type: existingAnalysis.product_type || '',
-            color: existingAnalysis.color || '',
-            material: existingAnalysis.material || '',
-            style: existingAnalysis.style || '',
-            description: existingAnalysis.description || '',
-          })
-          setSaved(true)
-        }
-      } catch (e) {
-        console.error('Failed to load data:', e)
-      } finally {
-        setLoading(false)
-      }
+    const stored = getClothingItems()
+    setItems(stored)
+    if (stored.length > 0 && !selectedId) {
+      setSelectedId(stored[0].id)
     }
-    loadData()
-  }, [project])
+  }, [selectedId])
 
   useEffect(() => {
     if (selectedId) {
+      const item = items.find(i => i.id === selectedId)
+      if (item?.analysis) {
+        setAnalysis(item.analysis as ProductAnalysis)
+        setSaved(true)
+      } else {
+        setAnalysis(defaultAnalysis)
+        setSaved(false)
+      }
       setEditing(false)
     }
-  }, [selectedId])
+  }, [selectedId, items])
 
   const selectedItem = items.find(i => i.id === selectedId)
 
@@ -80,7 +64,7 @@ export default function AnalysisPage() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageData: selectedItem.image_data }),
+        body: JSON.stringify({ imageData: selectedItem.imageData }),
       })
 
       if (!response.ok) {
@@ -99,13 +83,14 @@ export default function AnalysisPage() {
     }
   }
 
+  // 综合分析 - 分析所有图片并汇总
   const handleBatchAnalyze = async () => {
-    if (items.length === 0 || !project) return
+    if (items.length === 0) return
 
     setBatchAnalyzing(true)
 
     try {
-      const imageDataList = items.map(item => item.image_data)
+      const imageDataList = items.map(item => item.imageData)
 
       const response = await fetch('/api/analyze-batch', {
         method: 'POST',
@@ -130,35 +115,20 @@ export default function AnalysisPage() {
     }
   }
 
-  const handleSave = async () => {
-    if (!project) return
+  const handleSave = () => {
+    if (!selectedId) return
 
     setSaving(true)
-    try {
-      await saveProductAnalysis(project.id, analysis)
-      setSaved(true)
-      setEditing(false)
-    } catch (e) {
-      console.error('Save error:', e)
-      alert('保存失败')
-    } finally {
-      setSaving(false)
-    }
+    updateItemAnalysis(selectedId, analysis)
+    setSaved(true)
+    setEditing(false)
+    setSaving(false)
+    setItems(getClothingItems())
   }
 
   const handleFieldChange = (field: keyof ProductAnalysis, value: string) => {
     setAnalysis(prev => ({ ...prev, [field]: value }))
     setSaved(false)
-  }
-
-  if (loading) {
-    return (
-      <WizardLayout currentStep={2}>
-        <div className="flex items-center justify-center h-full">
-          <p className="text-gray-400">加载中...</p>
-        </div>
-      </WizardLayout>
-    )
   }
 
   if (items.length === 0) {
@@ -201,7 +171,7 @@ export default function AnalysisPage() {
                   }`}
                 >
                   <img
-                    src={item.image_data}
+                    src={item.imageData}
                     alt={item.name}
                     className="w-full aspect-square object-cover rounded mb-2"
                   />
@@ -245,7 +215,7 @@ export default function AnalysisPage() {
                 <>
                   <div className="flex gap-6 mb-6 pb-6 border-b border-gray-700">
                     <img
-                      src={selectedItem.image_data}
+                      src={selectedItem.imageData}
                       alt={selectedItem.name}
                       className="w-32 h-32 object-cover rounded-lg"
                     />
@@ -337,7 +307,10 @@ export default function AnalysisPage() {
                         <button
                           onClick={() => {
                             setEditing(false)
-                            setAnalysis(defaultAnalysis)
+                            const item = items.find(i => i.id === selectedId)
+                            if (item?.analysis) {
+                              setAnalysis(item.analysis as ProductAnalysis)
+                            }
                           }}
                           className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
                         >

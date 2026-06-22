@@ -3,22 +3,17 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-import { useProject } from '@/components/ProjectContext'
-import { getClothingItems, getProductAnalysis, saveSceneConfigs, getSceneConfigs } from '@/lib/db'
-import type { SceneConfig } from '@/lib/database.types'
+import { getClothingItems, ClothingItem } from '@/lib/storage'
 
-interface ClothingItem {
+interface SceneConfig {
   id: string
   name: string
-  image_data: string
-}
-
-interface Analysis {
-  product_type: string
-  color: string
-  material: string
-  style: string
-  description: string
+  imagesCount: number
+  season: string
+  subject: string
+  environment: string
+  surroundings: string[]
+  customPrompt: string
 }
 
 const PRESET_SCENES = [
@@ -105,47 +100,24 @@ const SURROUNDINGS_OPTIONS = [
   '电脑', '办公桌', '书架', '灯具', '绿植', '墙面',
 ]
 
+const STORAGE_KEY = 'visionfit_scene_configs'
+
 export default function ScenePage() {
-  const { project } = useProject()
   const [items, setItems] = useState<ClothingItem[]>([])
-  const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [scenes, setScenes] = useState<SceneConfig[]>([])
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const loadData = async () => {
-      if (!project) return
-      try {
-        const [loadedItems, loadedAnalysis, loadedScenes] = await Promise.all([
-          getClothingItems(project.id),
-          getProductAnalysis(project.id),
-          getSceneConfigs(project.id),
-        ])
+    setItems(getClothingItems())
 
-        setItems(loadedItems)
-        if (loadedAnalysis) {
-          setAnalysis({
-            product_type: loadedAnalysis.product_type || '',
-            color: loadedAnalysis.color || '',
-            material: loadedAnalysis.material || '',
-            style: loadedAnalysis.style || '',
-            description: loadedAnalysis.description || '',
-          })
-        }
-
-        if (loadedScenes.length > 0) {
-          setScenes(loadedScenes)
-        } else {
-          setScenes([createEmptyScene()])
-        }
-      } catch (e) {
-        console.error('Failed to load data:', e)
-      } finally {
-        setLoading(false)
-      }
+    // Load saved scenes from localStorage
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (saved) {
+      setScenes(JSON.parse(saved))
+    } else {
+      // Default: add one empty scene config
+      setScenes([createEmptyScene()])
     }
-    loadData()
-  }, [project])
+  }, [])
 
   const createEmptyScene = (): SceneConfig => ({
     id: `scene_${Date.now()}`,
@@ -186,30 +158,16 @@ export default function ScenePage() {
       environment: preset.defaultEnvironment,
       surroundings: [...preset.defaultSurroundings],
       customPrompt: preset.prompt,
-      preset_id: preset.id,
     })
   }
 
-  const handleSave = async () => {
-    if (!project) return
-    try {
-      await saveSceneConfigs(project.id, scenes)
-      alert('场景配置已保存！')
-    } catch (e) {
-      console.error('Save error:', e)
-      alert('保存失败')
-    }
+  const saveScenes = () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(scenes))
+    alert('场景配置已保存！')
   }
 
-  if (loading) {
-    return (
-      <WizardLayout currentStep={3}>
-        <div className="flex items-center justify-center h-full">
-          <p className="text-gray-400">加载中...</p>
-        </div>
-      </WizardLayout>
-    )
-  }
+  const hasAnalysis = items.some(i => i.analysis)
+  const selectedItem = items.find(i => i.analysis)
 
   if (items.length === 0) {
     return (
@@ -234,19 +192,19 @@ export default function ScenePage() {
         </div>
 
         {/* Product Summary */}
-        {analysis && (
+        {selectedItem && selectedItem.analysis && (
           <div className="bg-gray-800/50 rounded-lg p-4 mb-6 border border-gray-700">
             <p className="text-sm text-gray-400 mb-2">当前产品</p>
             <div className="flex items-center gap-4">
               <img
-                src={items[0]?.image_data}
-                alt={items[0]?.name}
+                src={selectedItem.imageData}
+                alt={selectedItem.name}
                 className="w-16 h-16 object-cover rounded"
               />
               <div>
-                <p className="font-medium">{items[0]?.name}</p>
+                <p className="font-medium">{selectedItem.name}</p>
                 <p className="text-sm text-gray-400">
-                  {analysis.product_type} | {analysis.color} | {analysis.style}
+                  {selectedItem.analysis.product_type} | {selectedItem.analysis.color} | {selectedItem.analysis.style}
                 </p>
               </div>
             </div>
@@ -414,7 +372,7 @@ export default function ScenePage() {
           </Link>
           <div className="flex gap-3">
             <button
-              onClick={handleSave}
+              onClick={saveScenes}
               className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
             >
               保存配置

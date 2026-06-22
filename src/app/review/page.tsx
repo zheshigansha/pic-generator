@@ -3,107 +3,85 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-import { useProject } from '@/components/ProjectContext'
-import { getGeneratedImages, saveSelectedImages, deleteGeneratedImage } from '@/lib/db'
-import type { GeneratedImage } from '@/lib/database.types'
+
+interface GeneratedImage {
+  url: string
+  revisedPrompt: string
+  sceneId: string
+  sceneName: string
+}
+
+const GENERATED_STORAGE_KEY = 'visionfit_generated_images'
+const SELECTED_STORAGE_KEY = 'visionfit_selected_images'
 
 export default function ReviewPage() {
-  const { project } = useProject()
   const [images, setImages] = useState<GeneratedImage[]>([])
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [coverId, setCoverId] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [coverIndex, setCoverIndex] = useState<number | null>(null)
 
   useEffect(() => {
-    const loadData = async () => {
-      if (!project) return
-      try {
-        const loadedImages = await getGeneratedImages(project.id)
-        setImages(loadedImages)
-      } catch (e) {
-        console.error('Failed to load data:', e)
-      } finally {
-        setLoading(false)
-      }
+    const saved = localStorage.getItem(GENERATED_STORAGE_KEY)
+    if (saved) {
+      setImages(JSON.parse(saved))
     }
-    loadData()
-  }, [project])
 
-  const toggleSelect = (id: string) => {
+    const selected = localStorage.getItem(SELECTED_STORAGE_KEY)
+    if (selected) {
+      const { ids, coverIndex: ci } = JSON.parse(selected)
+      setSelectedIds(new Set(ids))
+      setCoverIndex(ci)
+    }
+  }, [])
+
+  const toggleSelect = (index: number) => {
     const newSelected = new Set(selectedIds)
-    if (newSelected.has(id)) {
-      newSelected.delete(id)
+    if (newSelected.has(index)) {
+      newSelected.delete(index)
     } else {
-      newSelected.add(id)
+      newSelected.add(index)
     }
     setSelectedIds(newSelected)
   }
 
-  const setAsCover = (id: string) => {
-    setCoverId(id)
-    if (!selectedIds.has(id)) {
+  const setAsCover = (index: number) => {
+    setCoverIndex(index)
+    if (!selectedIds.has(index)) {
       const newSelected = new Set(selectedIds)
-      newSelected.add(id)
+      newSelected.add(index)
       setSelectedIds(newSelected)
     }
   }
 
-  const deleteSelected = async () => {
+  const deleteSelected = () => {
     if (selectedIds.size === 0) return
     if (!confirm(`确定删除选中的 ${selectedIds.size} 张图片吗？`)) return
 
-    try {
-      for (const id of selectedIds) {
-        await deleteGeneratedImage(id)
-      }
-      setImages(prev => prev.filter(img => !selectedIds.has(img.id || '')))
-      setSelectedIds(new Set())
-      setCoverId(null)
-    } catch (e) {
-      console.error('Delete error:', e)
-      alert('删除失败')
+    const remaining = images.filter((_, i) => !selectedIds.has(i))
+    setImages(remaining)
+    setSelectedIds(new Set())
+    if (coverIndex !== null && selectedIds.has(coverIndex)) {
+      setCoverIndex(null)
     }
+    localStorage.setItem(GENERATED_STORAGE_KEY, JSON.stringify(remaining))
   }
 
-  const saveSelection = async () => {
-    if (!project) return
-    setSaving(true)
-    try {
-      await saveSelectedImages(
-        project.id,
-        Array.from(selectedIds),
-        coverId,
-        ''
-      )
-      alert('选择已保存！')
-    } catch (e) {
-      console.error('Save error:', e)
-      alert('保存失败')
-    } finally {
-      setSaving(false)
-    }
+  const saveSelection = () => {
+    localStorage.setItem(SELECTED_STORAGE_KEY, JSON.stringify({
+      ids: Array.from(selectedIds),
+      coverIndex,
+    }))
+    alert('选择已保存！')
   }
 
   // Group images by scene
   const groupedImages: { [sceneName: string]: GeneratedImage[] } = {}
-  images.forEach((img) => {
+  images.forEach((img, idx) => {
     const key = img.sceneName || '未命名'
     if (!groupedImages[key]) {
       groupedImages[key] = []
     }
-    groupedImages[key].push(img)
+    groupedImages[key].push({ ...img, url: img.url })
   })
-
-  if (loading) {
-    return (
-      <WizardLayout currentStep={5}>
-        <div className="flex items-center justify-center h-full">
-          <p className="text-gray-400">加载中...</p>
-        </div>
-      </WizardLayout>
-    )
-  }
 
   if (images.length === 0) {
     return (
@@ -133,7 +111,7 @@ export default function ReviewPage() {
             <span className="text-sm text-gray-400">
               已选择 <span className="text-white font-medium">{selectedIds.size}</span> / {images.length} 张
             </span>
-            {coverId && (
+            {coverIndex !== null && (
               <span className="text-sm text-green-400">
                 封面已设置
               </span>
@@ -153,10 +131,9 @@ export default function ReviewPage() {
             </button>
             <button
               onClick={saveSelection}
-              disabled={saving}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
             >
-              {saving ? '保存中...' : '保存选择'}
+              保存选择
             </button>
           </div>
         </div>
@@ -172,13 +149,13 @@ export default function ReviewPage() {
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {sceneImages.map((img, idx) => {
-                  const imgId = img.id || `${img.sceneId}-${idx}`
-                  const isSelected = selectedIds.has(imgId)
-                  const isCover = coverId === imgId
+                  const globalIndex = images.indexOf(img)
+                  const isSelected = selectedIds.has(globalIndex)
+                  const isCover = coverIndex === globalIndex
 
                   return (
                     <div
-                      key={imgId}
+                      key={idx}
                       className={`relative rounded-lg border-2 transition-all overflow-hidden ${
                         isCover
                           ? 'border-green-500 ring-2 ring-green-500/50'
@@ -196,7 +173,7 @@ export default function ReviewPage() {
                       {/* Overlay */}
                       <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
-                          onClick={() => toggleSelect(imgId)}
+                          onClick={() => toggleSelect(globalIndex)}
                           className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                             isSelected
                               ? 'bg-blue-600 text-white'
@@ -206,7 +183,7 @@ export default function ReviewPage() {
                           {isSelected ? '✓' : ''}
                         </button>
                         <button
-                          onClick={() => setAsCover(imgId)}
+                          onClick={() => setAsCover(globalIndex)}
                           className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                             isCover
                               ? 'bg-green-600 text-white'
