@@ -54,16 +54,24 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   const refreshProject = async () => {
     const projectId = localStorage.getItem(PROJECT_ID_KEY)
-    if (!projectId) {
-      setLoading(false)
-      return
+    if (projectId) {
+      const data = await loadProject(projectId)
+      if (data) {
+        setProject(data)
+        setLoading(false)
+        return
+      }
+      // Project not found in DB, clear stale ID
+      localStorage.removeItem(PROJECT_ID_KEY)
     }
 
-    const data = await loadProject(projectId)
-    if (data) {
-      setProject(data)
-    } else {
-      localStorage.removeItem(PROJECT_ID_KEY)
+    // No project exists — create one automatically
+    try {
+      const newProject = await createNewProject('New Project')
+      setProject(newProject)
+    } catch (e) {
+      console.error('Failed to create project:', e)
+      // Still set loading false so UI doesn't hang
     }
     setLoading(false)
   }

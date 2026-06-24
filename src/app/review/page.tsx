@@ -3,85 +3,121 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-
-interface GeneratedImage {
-  url: string
-  revisedPrompt: string
-  sceneId: string
-  sceneName: string
-}
-
-const GENERATED_STORAGE_KEY = 'visionfit_generated_images'
-const SELECTED_STORAGE_KEY = 'visionfit_selected_images'
+import { useProject } from '@/components/ProjectContext'
+import {
+  getGeneratedImages,
+  getSelectedImages,
+  saveSelectedImages,
+  deleteGeneratedImage,
+} from '@/lib/db'
+import type { GeneratedImage } from '@/lib/database.types'
 
 export default function ReviewPage() {
+  const { project } = useProject()
   const [images, setImages] = useState<GeneratedImage[]>([])
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
-  const [coverIndex, setCoverIndex] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [coverId, setCoverId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    const saved = localStorage.getItem(GENERATED_STORAGE_KEY)
-    if (saved) {
-      setImages(JSON.parse(saved))
-    }
+    const loadData = async () => {
+      if (!project) return
+      try {
+        const [loadedImages, savedSelection] = await Promise.all([
+          getGeneratedImages(project.id),
+          getSelectedImages(project.id),
+        ])
+        setImages(loadedImages)
 
-    const selected = localStorage.getItem(SELECTED_STORAGE_KEY)
-    if (selected) {
-      const { ids, coverIndex: ci } = JSON.parse(selected)
-      setSelectedIds(new Set(ids))
-      setCoverIndex(ci)
+        if (savedSelection) {
+          setSelectedIds(new Set(savedSelection.selected_image_ids || []))
+          setCoverId(savedSelection.cover_image_id || null)
+        }
+      } catch (e) {
+        console.error('Failed to load data:', e)
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [])
+    loadData()
+  }, [project])
 
-  const toggleSelect = (index: number) => {
+  const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds)
-    if (newSelected.has(index)) {
-      newSelected.delete(index)
+    if (newSelected.has(id)) {
+      newSelected.delete(id)
     } else {
-      newSelected.add(index)
+      newSelected.add(id)
     }
     setSelectedIds(newSelected)
   }
 
-  const setAsCover = (index: number) => {
-    setCoverIndex(index)
-    if (!selectedIds.has(index)) {
+  const setAsCover = (id: string) => {
+    setCoverId(id)
+    if (!selectedIds.has(id)) {
       const newSelected = new Set(selectedIds)
-      newSelected.add(index)
+      newSelected.add(id)
       setSelectedIds(newSelected)
     }
   }
 
-  const deleteSelected = () => {
-    if (selectedIds.size === 0) return
-    if (!confirm(`确定删除选中的 ${selectedIds.size} 张图片吗？`)) return
-
-    const remaining = images.filter((_, i) => !selectedIds.has(i))
-    setImages(remaining)
-    setSelectedIds(new Set())
-    if (coverIndex !== null && selectedIds.has(coverIndex)) {
-      setCoverIndex(null)
+  const handleDelete = async (id: string) => {
+    if (!confirm('确定删除这张图片吗？')) return
+    try {
+      await deleteGeneratedImage(id)
+      setImages(prev => prev.filter(img => img.id !== id))
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      if (coverId === id) setCoverId(null)
+    } catch (e) {
+      console.error('Delete error:', e)
+      alert('删除失败')
     }
-    localStorage.setItem(GENERATED_STORAGE_KEY, JSON.stringify(remaining))
   }
 
-  const saveSelection = () => {
-    localStorage.setItem(SELECTED_STORAGE_KEY, JSON.stringify({
-      ids: Array.from(selectedIds),
-      coverIndex,
-    }))
-    alert('选择已保存！')
+  const handleSave = async () => {
+    if (!project) return
+    setSaving(true)
+    try {
+      const caption = '' // User fills this in output page
+      await saveSelectedImages(
+        project.id,
+        Array.from(selectedIds),
+        coverId,
+        caption
+      )
+      alert('选择已保存！')
+    } catch (e) {
+      console.error('Save error:', e)
+      alert('保存失败')
+    } finally {
+      setSaving(false)
+    }
   }
 
   // Group images by scene
   const groupedImages: { [sceneName: string]: GeneratedImage[] } = {}
-  images.forEach((img, idx) => {
+  images.forEach(img => {
     const key = img.sceneName || '未命名'
     if (!groupedImages[key]) {
       groupedImages[key] = []
     }
-    groupedImages[key].push({ ...img, url: img.url })
+    groupedImages[key].push(img)
   })
+
+  if (!project || loading) {
+    return (
+      <WizardLayout currentStep={5}>
+        <div className="flex flex-col items-center justify-center h-full text-center">
+          <p className="text-gray-400">加载中...</p>
+        </div>
+      </WizardLayout>
+    )
+  }
 
   if (images.length === 0) {
     return (
@@ -111,31 +147,19 @@ export default function ReviewPage() {
             <span className="text-sm text-gray-400">
               已选择 <span className="text-white font-medium">{selectedIds.size}</span> / {images.length} 张
             </span>
-            {coverIndex !== null && (
-              <span className="text-sm text-green-400">
-                封面已设置
-              </span>
+            {coverId && (
+              <span className="text-sm text-green-400">封面已设置</span>
             )}
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={deleteSelected}
-              disabled={selectedIds.size === 0}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                selectedIds.size === 0
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-700'
-              }`}
-            >
-              删除选中
-            </button>
-            <button
-              onClick={saveSelection}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
-            >
-              保存选择
-            </button>
-          </div>
+          <button
+            onClick={handleSave}
+            disabled={saving || selectedIds.size === 0}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              saving ? 'bg-gray-700 text-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {saving ? '保存中...' : '💾 保存选择'}
+          </button>
         </div>
 
         {/* Images by Scene */}
@@ -148,14 +172,13 @@ export default function ReviewPage() {
                 <span className="text-sm text-gray-500 font-normal">({sceneImages.length}张)</span>
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {sceneImages.map((img, idx) => {
-                  const globalIndex = images.indexOf(img)
-                  const isSelected = selectedIds.has(globalIndex)
-                  const isCover = coverIndex === globalIndex
+                {sceneImages.map((img) => {
+                  const isSelected = selectedIds.has(img.id || '')
+                  const isCover = coverId === (img.id || '')
 
                   return (
                     <div
-                      key={idx}
+                      key={img.id}
                       className={`relative rounded-lg border-2 transition-all overflow-hidden ${
                         isCover
                           ? 'border-green-500 ring-2 ring-green-500/50'
@@ -166,14 +189,14 @@ export default function ReviewPage() {
                     >
                       <img
                         src={img.url}
-                        alt={`${sceneName} ${idx + 1}`}
+                        alt={img.sceneName}
                         className="w-full aspect-[3/4] object-cover"
                       />
 
                       {/* Overlay */}
                       <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                         <button
-                          onClick={() => toggleSelect(globalIndex)}
+                          onClick={() => toggleSelect(img.id || '')}
                           className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                             isSelected
                               ? 'bg-blue-600 text-white'
@@ -183,7 +206,7 @@ export default function ReviewPage() {
                           {isSelected ? '✓' : ''}
                         </button>
                         <button
-                          onClick={() => setAsCover(globalIndex)}
+                          onClick={() => setAsCover(img.id || '')}
                           className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
                             isCover
                               ? 'bg-green-600 text-white'
@@ -192,6 +215,13 @@ export default function ReviewPage() {
                           title="设为封面"
                         >
                           ★
+                        </button>
+                        <button
+                          onClick={() => handleDelete(img.id || '')}
+                          className="w-10 h-10 rounded-full flex items-center justify-center bg-white/20 text-white hover:bg-red-600 transition-colors"
+                          title="删除"
+                        >
+                          ✕
                         </button>
                       </div>
 

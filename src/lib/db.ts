@@ -43,11 +43,15 @@ export async function updateProjectStatus(id: string, status: string) {
 // CLOTHING ITEMS OPERATIONS
 // ============================================================================
 
-export async function saveClothingItems(projectId: string, imageDataList: Array<{ imageData: string; fileName: string }>) {
-  const items = imageDataList.map(({ imageData, fileName }) => ({
+export async function saveClothingItems(
+  projectId: string,
+  imageDataList: Array<{ imageData: string; fileName: string; imageUrl?: string }>
+) {
+  const items = imageDataList.map(({ imageData, fileName, imageUrl }) => ({
     project_id: projectId,
     name: fileName.replace(/\.[^/.]+$/, ''),
     image_data: imageData,
+    image_url: imageUrl || null,
     uploaded_at: new Date().toISOString().split('T')[0],
   }))
 

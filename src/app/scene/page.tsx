@@ -3,9 +3,16 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-import { getClothingItems, ClothingItem } from '@/lib/storage'
+import { useProject } from '@/components/ProjectContext'
+import {
+  getClothingItemsWithAnalysis,
+  getSceneConfigs,
+  saveSceneConfigs,
+} from '@/lib/db'
+import type { ClothingItemDB } from '@/components/types'
+import type { SceneConfig } from '@/lib/database.types'
 
-interface SceneConfig {
+interface SceneConfigUI {
   id: string
   name: string
   imagesCount: number
@@ -92,7 +99,7 @@ const PRESET_SCENES = [
 ]
 
 const SEASONS = ['Spring', 'Summer', 'Fall', 'Autumn', 'Winter', 'All-season']
-const SUBJECTS = ['人', '女人', '男人', '男孩', '女孩', '猫', '仓鼠', '狗', '自定义']
+const SUBJECTS = ['人', '女人', '男人', '男孩', '女孩']
 const ENVIRONMENTS = ['室内', '户外', '半室内', '夜景']
 const SURROUNDINGS_OPTIONS = [
   '天空', '大海', '沙滩', '草坪', '树木', '花卉',
@@ -100,26 +107,46 @@ const SURROUNDINGS_OPTIONS = [
   '电脑', '办公桌', '书架', '灯具', '绿植', '墙面',
 ]
 
-const STORAGE_KEY = 'visionfit_scene_configs'
-
 export default function ScenePage() {
-  const [items, setItems] = useState<ClothingItem[]>([])
-  const [scenes, setScenes] = useState<SceneConfig[]>([])
+  const { project } = useProject()
+  const [items, setItems] = useState<ClothingItemDB[]>([])
+  const [scenes, setScenes] = useState<SceneConfigUI[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    setItems(getClothingItems())
-
-    // Load saved scenes from localStorage
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) {
-      setScenes(JSON.parse(saved))
-    } else {
-      // Default: add one empty scene config
-      setScenes([createEmptyScene()])
+    const loadData = async () => {
+      if (!project) return
+      try {
+        const [loadedItems, loadedScenes] = await Promise.all([
+          getClothingItemsWithAnalysis(project.id),
+          getSceneConfigs(project.id),
+        ])
+        setItems(loadedItems)
+        if (loadedScenes.length > 0) {
+          setScenes(loadedScenes.map(s => ({
+            id: s.id || `scene_${Date.now()}`,
+            name: s.name,
+            imagesCount: s.imagesCount,
+            season: s.season,
+            subject: s.subject,
+            environment: s.environment,
+            surroundings: s.surroundings || [],
+            customPrompt: s.customPrompt || '',
+          })))
+        } else {
+          setScenes([createEmptyScene()])
+        }
+      } catch (e) {
+        console.error('Failed to load data:', e)
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [])
+    loadData()
+  }, [project])
 
-  const createEmptyScene = (): SceneConfig => ({
+  const createEmptyScene = (): SceneConfigUI => ({
     id: `scene_${Date.now()}`,
     name: '',
     imagesCount: 1,
@@ -146,7 +173,7 @@ export default function ScenePage() {
     setScenes(scenes.filter(s => s.id !== id))
   }
 
-  const updateScene = (id: string, updates: Partial<SceneConfig>) => {
+  const updateScene = (id: string, updates: Partial<SceneConfigUI>) => {
     setScenes(scenes.map(s => s.id === id ? { ...s, ...updates } : s))
   }
 
@@ -161,19 +188,50 @@ export default function ScenePage() {
     })
   }
 
-  const saveScenes = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(scenes))
-    alert('场景配置已保存！')
+  const handleSave = async () => {
+    if (!project) return
+    setSaving(true)
+    try {
+      // Convert UI scenes to DB format
+      const dbScenes: SceneConfig[] = scenes.map((s, index) => ({
+        id: s.id.startsWith('scene_') ? '' : s.id, // Empty id means insert
+        name: s.name,
+        imagesCount: s.imagesCount,
+        season: s.season,
+        subject: s.subject,
+        environment: s.environment,
+        surroundings: s.surroundings,
+        customPrompt: s.customPrompt,
+        preset_id: undefined,
+      }))
+      await saveSceneConfigs(project.id, dbScenes)
+      alert('场景配置已保存！')
+    } catch (e) {
+      console.error('Failed to save scenes:', e)
+      alert('保存失败')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const hasAnalysis = items.some(i => i.analysis)
   const selectedItem = items.find(i => i.analysis)
 
+  if (!project || loading) {
+    return (
+      <WizardLayout currentStep={3}>
+        <div className="flex flex-col items-center justify-center h-full text-center">
+          <p className="text-gray-400">加载中...</p>
+        </div>
+      </WizardLayout>
+    )
+  }
+
   if (items.length === 0) {
     return (
       <WizardLayout currentStep={3}>
         <div className="flex flex-col items-center justify-center h-full text-center">
-          <p className="text-gray-400 mb-4">请先上传图片并完成分析</p>
+          <p className="text-gray-400 mb-4">请先上传图片</p>
           <Link href="/upload" className="text-blue-400 hover:text-blue-300">
             ← 返回上传
           </Link>
@@ -197,7 +255,7 @@ export default function ScenePage() {
             <p className="text-sm text-gray-400 mb-2">当前产品</p>
             <div className="flex items-center gap-4">
               <img
-                src={selectedItem.imageData}
+                src={selectedItem.image_data}
                 alt={selectedItem.name}
                 className="w-16 h-16 object-cover rounded"
               />
@@ -360,7 +418,7 @@ export default function ScenePage() {
         <button
           onClick={addScene}
           disabled={scenes.length >= 10}
-          className="mt-4 w-full py-3 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-colors"
+          className="mt-4 w-full py-3 border-2 border-dashed border-gray-600 rounded-lg text-gray-400 hover:border-blue-500 hover:text-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           + 添加场景（{scenes.length}/10）
         </button>
@@ -372,10 +430,11 @@ export default function ScenePage() {
           </Link>
           <div className="flex gap-3">
             <button
-              onClick={saveScenes}
-              className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors disabled:opacity-50"
             >
-              保存配置
+              {saving ? '保存中...' : '💾 保存配置'}
             </button>
             <Link
               href="/generate"

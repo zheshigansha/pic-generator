@@ -5,6 +5,9 @@ const API_KEY = process.env.FLUX_API_KEY!
 
 interface GenerateRequest {
   prompt: string
+  imageUrl?: string  // Reference image URL for img2img
+  aspectRatio?: string
+  resolution?: string
 }
 
 async function pollTaskStatus(taskId: string, maxAttempts = 60): Promise<{ url: string; revisedPrompt: string }[]> {
@@ -39,7 +42,24 @@ async function pollTaskStatus(taskId: string, maxAttempts = 60): Promise<{ url: 
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt } = await request.json() as GenerateRequest
+    const { prompt, imageUrl, aspectRatio = '3:4', resolution = '1K' } = await request.json() as GenerateRequest
+
+    // Determine which model to use
+    const useImg2Img = !!imageUrl
+    const model = useImg2Img ? 'flux-2/flex-image-to-image' : 'flux-2/flex-text-to-image'
+
+    // Build input based on model type
+    const input: Record<string, any> = {
+      prompt,
+      aspect_ratio: aspectRatio,
+      resolution,
+      nsfw_checker: false,
+    }
+
+    if (useImg2Img) {
+      // img2img requires input_urls (array of image URLs)
+      input.input_urls = [imageUrl]
+    }
 
     // Step 1: Create task
     const createResponse = await fetch(`${API_BASE}/api/v1/jobs/createTask`, {
@@ -49,13 +69,8 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'flux-2/flex-text-to-image',
-        input: {
-          prompt,
-          aspect_ratio: '3:4',
-          resolution: '1K',
-          nsfw_checker: false,
-        },
+        model,
+        input,
       }),
     })
 

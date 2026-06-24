@@ -3,57 +3,88 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-
-interface GeneratedImage {
-  url: string
-  revisedPrompt: string
-  sceneId: string
-  sceneName: string
-}
-
-const GENERATED_STORAGE_KEY = 'visionfit_generated_images'
-const SELECTED_STORAGE_KEY = 'visionfit_selected_images'
+import { useProject } from '@/components/ProjectContext'
+import {
+  getGeneratedImages,
+  getSelectedImages,
+  saveSelectedImages,
+} from '@/lib/db'
+import type { GeneratedImage } from '@/lib/database.types'
 
 export default function OutputPage() {
+  const { project } = useProject()
   const [images, setImages] = useState<GeneratedImage[]>([])
-  const [selectedIds, setSelectedIds] = useState<number[]>([])
-  const [coverIndex, setCoverIndex] = useState<number | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [coverId, setCoverId] = useState<string | null>(null)
   const [caption, setCaption] = useState('')
   const [platform, setPlatform] = useState<'facebook' | 'instagram' | 'download' | null>(null)
   const [publishing, setPublishing] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const savedImages = localStorage.getItem(GENERATED_STORAGE_KEY)
-    const savedSelection = localStorage.getItem(SELECTED_STORAGE_KEY)
+    const loadData = async () => {
+      if (!project) return
+      try {
+        const [loadedImages, savedSelection] = await Promise.all([
+          getGeneratedImages(project.id),
+          getSelectedImages(project.id),
+        ])
+        setImages(loadedImages)
 
-    if (savedImages) {
-      setImages(JSON.parse(savedImages))
+        if (savedSelection) {
+          setSelectedIds(savedSelection.selected_image_ids || [])
+          setCoverId(savedSelection.cover_image_id || null)
+          setCaption(savedSelection.caption || '')
+        }
+      } catch (e) {
+        console.error('Failed to load data:', e)
+      } finally {
+        setLoading(false)
+      }
     }
+    loadData()
+  }, [project])
 
-    if (savedSelection) {
-      const { ids, coverIndex: ci } = JSON.parse(savedSelection)
-      setSelectedIds(ids)
-      setCoverIndex(ci)
+  const selectedImages = selectedIds
+    .map(id => images.find(img => img.id === id))
+    .filter((img): img is GeneratedImage => img !== undefined)
+
+  const coverImage = coverId
+    ? images.find(img => img.id === coverId)
+    : selectedImages[0]
+
+  const handleSaveCaption = async () => {
+    if (!project) return
+    try {
+      await saveSelectedImages(project.id, selectedIds, coverId, caption)
+      alert('文案已保存')
+    } catch (e) {
+      console.error('Failed to save caption:', e)
+      alert('保存失败')
     }
-  }, [])
-
-  const selectedImages = selectedIds.map(id => images[id]).filter(Boolean)
-  const coverImage = coverIndex !== null ? images[coverIndex] : selectedImages[0]
+  }
 
   const handlePublish = async () => {
     if (!platform || platform === 'download') return
+    if (selectedIds.length === 0) {
+      alert('请先选择要发布的图片')
+      return
+    }
 
     setPublishing(true)
-
     // Simulate publish - in real implementation, call Facebook/Instagram API
     await new Promise(resolve => setTimeout(resolve, 2000))
-
     setPublishing(false)
     alert(`${platform === 'facebook' ? 'Facebook' : 'Instagram'} 发布功能开发中...`)
   }
 
   const handleDownload = () => {
-    // Create a simple text file with image URLs
+    if (selectedImages.length === 0) {
+      alert('请先选择要下载的图片')
+      return
+    }
+
+    // Create a simple text file with image URLs and caption
     const content = `VisionFit Pro - 图片输出\n${new Date().toLocaleDateString()}\n\n封面图:\n${coverImage?.url || '未设置'}\n\n选中图片:\n${selectedImages.map((img, i) => `${i + 1}. ${img.sceneName}\n   ${img.url}`).join('\n\n')}\n\n文案:\n${caption}`
 
     const blob = new Blob([content], { type: 'text/plain' })
@@ -63,6 +94,16 @@ export default function OutputPage() {
     a.download = `visionfit-output-${Date.now()}.txt`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  if (!project || loading) {
+    return (
+      <WizardLayout currentStep={5}>
+        <div className="flex flex-col items-center justify-center h-full text-center">
+          <p className="text-gray-400">加载中...</p>
+        </div>
+      </WizardLayout>
+    )
   }
 
   if (images.length === 0) {
@@ -121,20 +162,24 @@ export default function OutputPage() {
               <h2 className="text-lg font-semibold mb-4">
                 已选图片 ({selectedImages.length}张)
               </h2>
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
-                {selectedImages.map((img, idx) => (
-                  <div key={idx} className="relative">
-                    <img
-                      src={img.url}
-                      alt={img.sceneName}
-                      className="w-full aspect-[3/4] object-cover rounded"
-                    />
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate">
-                      {img.sceneName}
+              {selectedImages.length > 0 ? (
+                <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                  {selectedImages.map((img, idx) => (
+                    <div key={idx} className="relative">
+                      <img
+                        src={img.url}
+                        alt={img.sceneName}
+                        className="w-full aspect-[3/4] object-cover rounded"
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1 truncate">
+                        {img.sceneName}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">请在审核页面选择图片</p>
+              )}
             </div>
           </div>
 
@@ -149,31 +194,17 @@ export default function OutputPage() {
                 placeholder="输入发布文案..."
                 className="w-full h-40 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white resize-none"
               />
+              <div className="flex gap-2 mt-2">
+                <button
+                  onClick={handleSaveCaption}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors"
+                >
+                  保存文案
+                </button>
+              </div>
               <p className="text-xs text-gray-500 mt-2">
                 建议包含产品特点和场景描述
               </p>
-            </div>
-
-            {/* Cover Options */}
-            <div className="bg-gray-800 rounded-xl border border-gray-700 p-6 mb-6">
-              <h2 className="text-lg font-semibold mb-4">封面选项</h2>
-              <div className="space-y-2">
-                <button className="w-full p-3 rounded-lg border-2 border-blue-500 bg-blue-500/20 text-left text-sm">
-                  <span className="text-blue-400">✓</span> 使用已选封面
-                </button>
-                <button
-                  disabled
-                  className="w-full p-3 rounded-lg border border-gray-700 text-left text-sm text-gray-500 cursor-not-allowed"
-                >
-                  重新生成封面（开发中）
-                </button>
-                <button
-                  disabled
-                  className="w-full p-3 rounded-lg border border-gray-700 text-left text-sm text-gray-500 cursor-not-allowed"
-                >
-                  上传自定义封面（开发中）
-                </button>
-              </div>
             </div>
 
             {/* Publish Platform */}
@@ -228,14 +259,14 @@ export default function OutputPage() {
             {/* Action Button */}
             <button
               onClick={platform === 'download' ? handleDownload : handlePublish}
-              disabled={!platform || publishing}
-              className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-                !platform || publishing
-                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+              disabled={!platform || publishing || selectedImages.length === 0}
+              className={`w-full py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                !platform || publishing || selectedImages.length === 0
+                  ? 'bg-gray-700 text-gray-400'
                   : 'bg-green-600 hover:bg-green-700'
               }`}
             >
-              {publishing ? '处理中...' : platform === 'download' ? '下载' : '发布'}
+              {publishing ? '处理中...' : platform === 'download' ? '💾 下载' : '📤 发布'}
             </button>
 
             <p className="text-xs text-gray-500 text-center mt-3">

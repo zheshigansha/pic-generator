@@ -25,6 +25,7 @@ export interface Database {
           project_id: string
           name: string
           image_data: string
+          image_url: string | null
           uploaded_at: string
           created_at: string
         }

@@ -3,7 +3,13 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
-import { getClothingItems, updateItemAnalysis, ClothingItem } from '@/lib/storage'
+import { useProject } from '@/components/ProjectContext'
+import {
+  getClothingItemsWithAnalysis,
+  saveProductAnalysis,
+  getProductAnalysis,
+} from '@/lib/db'
+import type { ClothingItemDB } from '@/components/types'
 
 interface ProductAnalysis {
   product_type: string
@@ -22,7 +28,8 @@ const defaultAnalysis: ProductAnalysis = {
 }
 
 export default function AnalysisPage() {
-  const [items, setItems] = useState<ClothingItem[]>([])
+  const { project } = useProject()
+  const [items, setItems] = useState<ClothingItemDB[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -30,33 +37,60 @@ export default function AnalysisPage() {
   const [editing, setEditing] = useState(false)
   const [saved, setSaved] = useState(false)
   const [batchAnalyzing, setBatchAnalyzing] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const stored = getClothingItems()
-    setItems(stored)
-    if (stored.length > 0 && !selectedId) {
-      setSelectedId(stored[0].id)
+    const loadItems = async () => {
+      if (!project) return
+      try {
+        const loadedItems = await getClothingItemsWithAnalysis(project.id)
+        setItems(loadedItems)
+        if (loadedItems.length > 0 && !selectedId) {
+          setSelectedId(loadedItems[0].id)
+        }
+      } catch (e) {
+        console.error('Failed to load items:', e)
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [selectedId])
+    loadItems()
+  }, [project])
 
   useEffect(() => {
-    if (selectedId) {
-      const item = items.find(i => i.id === selectedId)
-      if (item?.analysis) {
-        setAnalysis(item.analysis as ProductAnalysis)
-        setSaved(true)
-      } else {
+    const loadAnalysis = async () => {
+      if (!selectedId || !project) return
+
+      // Load project-level analysis from Supabase
+      try {
+        const projectAnalysis = await getProductAnalysis(project.id)
+        if (projectAnalysis) {
+          setAnalysis({
+            product_type: projectAnalysis.product_type || '',
+            color: projectAnalysis.color || '',
+            material: projectAnalysis.material || '',
+            style: projectAnalysis.style || '',
+            description: projectAnalysis.description || '',
+          })
+          setSaved(true)
+        } else {
+          setAnalysis(defaultAnalysis)
+          setSaved(false)
+        }
+      } catch (e) {
+        console.error('Failed to load analysis:', e)
         setAnalysis(defaultAnalysis)
         setSaved(false)
       }
       setEditing(false)
     }
-  }, [selectedId, items])
+    loadAnalysis()
+  }, [selectedId, project])
 
   const selectedItem = items.find(i => i.id === selectedId)
 
   const handleAnalyze = async () => {
-    if (!selectedItem) return
+    if (!selectedItem || !project) return
 
     setAnalyzing(true)
 
@@ -64,7 +98,7 @@ export default function AnalysisPage() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageData: selectedItem.imageData }),
+        body: JSON.stringify({ imageData: selectedItem.image_data }),
       })
 
       if (!response.ok) {
@@ -73,7 +107,7 @@ export default function AnalysisPage() {
       }
 
       const data = await response.json()
-      setAnalysis(data.analysis)
+      setAnalysis(data.analysis.analysis || data.analysis)
       setSaved(false)
     } catch (err) {
       console.error('Analyze error:', err)
@@ -85,12 +119,12 @@ export default function AnalysisPage() {
 
   // 综合分析 - 分析所有图片并汇总
   const handleBatchAnalyze = async () => {
-    if (items.length === 0) return
+    if (items.length === 0 || !project) return
 
     setBatchAnalyzing(true)
 
     try {
-      const imageDataList = items.map(item => item.imageData)
+      const imageDataList = items.map(item => item.image_data)
 
       const response = await fetch('/api/analyze-batch', {
         method: 'POST',
@@ -104,7 +138,7 @@ export default function AnalysisPage() {
       }
 
       const data = await response.json()
-      setAnalysis(data.analysis)
+      setAnalysis(data.analysis.analysis || data.analysis)
       setSaved(false)
       alert('综合分析完成！请检查结果并保存。')
     } catch (err) {
@@ -115,20 +149,38 @@ export default function AnalysisPage() {
     }
   }
 
-  const handleSave = () => {
-    if (!selectedId) return
+  const handleSave = async () => {
+    if (!selectedId || !project) return
 
     setSaving(true)
-    updateItemAnalysis(selectedId, analysis)
-    setSaved(true)
-    setEditing(false)
-    setSaving(false)
-    setItems(getClothingItems())
+    try {
+      await saveProductAnalysis(project.id, analysis)
+      setSaved(true)
+      setEditing(false)
+      // Reload items to update analysis status
+      const loadedItems = await getClothingItemsWithAnalysis(project.id)
+      setItems(loadedItems)
+    } catch (e) {
+      console.error('Failed to save analysis:', e)
+      alert('保存失败')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleFieldChange = (field: keyof ProductAnalysis, value: string) => {
     setAnalysis(prev => ({ ...prev, [field]: value }))
     setSaved(false)
+  }
+
+  if (!project || loading) {
+    return (
+      <WizardLayout currentStep={2}>
+        <div className="flex flex-col items-center justify-center h-full text-center">
+          <p className="text-gray-400">加载中...</p>
+        </div>
+      </WizardLayout>
+    )
   }
 
   if (items.length === 0) {
@@ -151,7 +203,7 @@ export default function AnalysisPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-white">产品分析</h1>
           <p className="text-gray-400 mt-1">
-            已上传 {items.length} 张图片 - 点击"综合分析"汇总所有图片
+            已上传 {items.length} 张图片 - 点击&quot;综合分析&quot;汇总所有图片
           </p>
         </div>
 
@@ -171,7 +223,7 @@ export default function AnalysisPage() {
                   }`}
                 >
                   <img
-                    src={item.imageData}
+                    src={item.image_data}
                     alt={item.name}
                     className="w-full aspect-square object-cover rounded mb-2"
                   />
@@ -193,7 +245,7 @@ export default function AnalysisPage() {
                 <button
                   onClick={handleBatchAnalyze}
                   disabled={batchAnalyzing}
-                  className={`w-full py-3 rounded-lg font-semibold transition-all ${
+                  className={`w-full py-3 rounded-lg font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                     batchAnalyzing
                       ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
                       : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700'
@@ -215,7 +267,7 @@ export default function AnalysisPage() {
                 <>
                   <div className="flex gap-6 mb-6 pb-6 border-b border-gray-700">
                     <img
-                      src={selectedItem.imageData}
+                      src={selectedItem.image_data}
                       alt={selectedItem.name}
                       className="w-32 h-32 object-cover rounded-lg"
                     />
@@ -225,9 +277,9 @@ export default function AnalysisPage() {
                       <button
                         onClick={handleAnalyze}
                         disabled={analyzing}
-                        className={`px-5 py-2 rounded-lg font-medium transition-colors ${
+                        className={`px-5 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 ${
                           analyzing
-                            ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                            ? 'bg-gray-700 text-gray-400'
                             : 'bg-gray-700 hover:bg-gray-600'
                         }`}
                       >
@@ -290,7 +342,7 @@ export default function AnalysisPage() {
                         <button
                           onClick={handleSave}
                           disabled={saving}
-                          className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-medium transition-colors"
+                          className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-medium transition-colors disabled:opacity-50"
                         >
                           {saving ? '保存中...' : '💾 保存分析结果'}
                         </button>
@@ -307,10 +359,18 @@ export default function AnalysisPage() {
                         <button
                           onClick={() => {
                             setEditing(false)
-                            const item = items.find(i => i.id === selectedId)
-                            if (item?.analysis) {
-                              setAnalysis(item.analysis as ProductAnalysis)
-                            }
+                            // Reload analysis
+                            getProductAnalysis(project!.id).then(data => {
+                              if (data) {
+                                setAnalysis({
+                                  product_type: data.product_type || '',
+                                  color: data.color || '',
+                                  material: data.material || '',
+                                  style: data.style || '',
+                                  description: data.description || '',
+                                })
+                              }
+                            })
                           }}
                           className="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors"
                         >
