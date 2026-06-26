@@ -51,11 +51,18 @@ function isDataImage(value: string) {
 
 function validateAnalysis(value: unknown): ProductAnalysis {
   if (!isRecord(value)) throw new Error('Invalid analysis')
+  const special_features = Array.isArray(value.special_features)
+    ? value.special_features.filter((f): f is string => typeof f === 'string').slice(0, 50)
+    : []
   return {
     product_type: optionalString(value.product_type, 300),
-    color: optionalString(value.color, 300),
-    material: optionalString(value.material, 300),
-    style: optionalString(value.style, 300),
+    color_main: optionalString(value.color_main, 300),
+    color_accents: optionalString(value.color_accents, 500),
+    material_texture: optionalString(value.material_texture, 500),
+    logo_position: optionalString(value.logo_position, 300),
+    logo_style: optionalString(value.logo_style, 300),
+    special_features,
+    silhouette: optionalString(value.silhouette, 300),
     description: optionalString(value.description, 5000),
   }
 }

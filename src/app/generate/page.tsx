@@ -25,6 +25,7 @@ export default function GeneratePage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedRefImage, setSelectedRefImage] = useState<ClothingItemDB | null>(null)
   const [loading, setLoading] = useState(true)
+  const [imgStrength, setImgStrength] = useState(0.8) // img2img strength: 0-1, higher = more faithful to original
 
   useEffect(() => {
     const loadData = async () => {
@@ -76,13 +77,35 @@ export default function GeneratePage() {
 
     let prompt = `Professional fashion photography of a ${subject} wearing `
 
-    // Product details from AI analysis
-    prompt += `a ${a.color} ${a.material} ${a.product_type.toLowerCase()}. `
-    prompt += `Style: ${a.style}. `
+    // Product type
+    prompt += `${a.product_type}. `
 
-    // Use AI description as base reference
-    if (a.description) {
-      prompt += `Product details: ${a.description} `
+    // Color details - main and accents
+    prompt += `Color: ${a.color_main}. `
+    if (a.color_accents) {
+      prompt += `Color accents: ${a.color_accents}. `
+    }
+
+    // Material and texture
+    if (a.material_texture) {
+      prompt += `Material and texture: ${a.material_texture}. `
+    }
+
+    // Logo details - position and style
+    if (a.logo_position || a.logo_style) {
+      prompt += `Logo details: `
+      if (a.logo_position) prompt += `positioned ${a.logo_position}, `
+      if (a.logo_style) prompt += `${a.logo_style}. `
+    }
+
+    // Special features
+    if (a.special_features && a.special_features.length > 0) {
+      prompt += `Key features: ${a.special_features.join(', ')}. `
+    }
+
+    // Silhouette
+    if (a.silhouette) {
+      prompt += `Fit and silhouette: ${a.silhouette}. `
     }
 
     // Season
@@ -147,9 +170,10 @@ export default function GeneratePage() {
           const prompt = buildPrompt(selectedItem, scene)
 
           // Pass imageUrl for img2img
-          const requestBody: { prompt: string; imageUrl: string } = {
+          const requestBody: { prompt: string; imageUrl: string; strength: number } = {
             prompt,
             imageUrl: selectedItem.image_url!,
+            strength: imgStrength,
           }
 
           const response = await fetch('/api/generate', {
@@ -282,6 +306,24 @@ export default function GeneratePage() {
                   className="w-full aspect-square object-cover rounded mb-2 border-2 border-purple-500"
                 />
                 <p className="text-xs text-purple-400 mb-2">✓ 使用原图生成</p>
+                {/* Strength slider */}
+                <div className="mt-2">
+                  <label className="text-xs text-gray-400 block mb-1">
+                    原图保留强度: {Math.round(imgStrength * 100)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1.0"
+                    step="0.05"
+                    value={imgStrength}
+                    onChange={(e) => setImgStrength(parseFloat(e.target.value))}
+                    className="w-full accent-purple-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {imgStrength >= 0.8 ? '高保真，接近原图' : imgStrength >= 0.5 ? '中等，可适当变化' : '高创意，自由度高'}
+                  </p>
+                </div>
                 {items.filter(i => i.image_url).length > 1 && (
                   <select
                     value={selectedItem.id}

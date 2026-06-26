@@ -15,17 +15,25 @@ import type { ClothingItemDB } from '@/components/types'
 
 interface ProductAnalysis {
   product_type: string
-  color: string
-  material: string
-  style: string
+  color_main: string
+  color_accents: string
+  material_texture: string
+  logo_position: string
+  logo_style: string
+  special_features: string[]
+  silhouette: string
   description: string
 }
 
 const defaultAnalysis: ProductAnalysis = {
   product_type: '',
-  color: '',
-  material: '',
-  style: '',
+  color_main: '',
+  color_accents: '',
+  material_texture: '',
+  logo_position: '',
+  logo_style: '',
+  special_features: [],
+  silhouette: '',
   description: '',
 }
 
@@ -174,7 +182,7 @@ export default function AnalysisPage() {
     }
   }
 
-  const handleFieldChange = (field: keyof ProductAnalysis, value: string) => {
+  const handleFieldChange = (field: keyof ProductAnalysis, value: string | string[]) => {
     setAnalysis(prev => ({ ...prev, [field]: value }))
     setSaved(false)
   }
@@ -294,7 +302,7 @@ export default function AnalysisPage() {
                     </div>
                   </div>
 
-                  {/* Analysis Fields */}
+                    {/* Analysis Fields */}
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-4">
                       <Field
@@ -302,44 +310,76 @@ export default function AnalysisPage() {
                         value={analysis.product_type}
                         onChange={v => handleFieldChange('product_type', v)}
                         editing={editing}
-                        placeholder="如：运动鞋、T恤、连衣裙、背包"
+                        placeholder="如：滑雪服、羽绒服、跑鞋"
                       />
                       <Field
-                        label="颜色"
-                        value={analysis.color}
-                        onChange={v => handleFieldChange('color', v)}
+                        label="主色"
+                        value={analysis.color_main}
+                        onChange={v => handleFieldChange('color_main', v)}
                         editing={editing}
-                        placeholder="如：纯白、深蓝色、红黑拼接"
+                        placeholder="如：深黑色、纯白、藏青色"
                       />
                       <Field
-                        label="材质"
-                        value={analysis.material}
-                        onChange={v => handleFieldChange('material', v)}
+                        label="配色/细节色"
+                        value={analysis.color_accents}
+                        onChange={v => handleFieldChange('color_accents', v)}
                         editing={editing}
-                        placeholder="如：真皮、帆布、棉质、塑料"
+                        placeholder="如：袖口白色撞色条纹、左胸口红色Logo"
                       />
                       <Field
-                        label="风格"
-                        value={analysis.style}
-                        onChange={v => handleFieldChange('style', v)}
+                        label="材质+纹理"
+                        value={analysis.material_texture}
+                        onChange={v => handleFieldChange('material_texture', v)}
                         editing={editing}
-                        placeholder="如：休闲、运动、正装、街潮"
+                        placeholder="如：哑光尼龙面料，横格纹衍缝"
+                      />
+                      <Field
+                        label="Logo位置"
+                        value={analysis.logo_position}
+                        onChange={v => handleFieldChange('logo_position', v)}
+                        editing={editing}
+                        placeholder="如：左胸口、右侧袖口、后背上部"
+                      />
+                      <Field
+                        label="Logo样式"
+                        value={analysis.logo_style}
+                        onChange={v => handleFieldChange('logo_style', v)}
+                        editing={editing}
+                        placeholder="如：3cm白色刺绣、黑色反光印刷字样"
+                      />
+                      <Field
+                        label="轮廓/版型"
+                        value={analysis.silhouette}
+                        onChange={v => handleFieldChange('silhouette', v)}
+                        editing={editing}
+                        placeholder="如：宽松中长款、过臀长度、修身锥形裤"
                       />
                     </div>
 
+                    {/* Special Features */}
                     <div>
-                      <h4 className="text-sm font-medium text-gray-400 mb-2">产品描述</h4>
+                      <h4 className="text-sm font-medium text-gray-400 mb-2">特殊细节</h4>
+                      <Field
+                        label=""
+                        value={analysis.special_features.join('；')}
+                        onChange={v => handleFieldChange('special_features' as any, v.split('；').filter(Boolean))}
+                        editing={editing}
+                        placeholder="防水压胶接缝、可拆卸毛领、内层加绒（用分号分隔多个细节）"
+                        multiline
+                      />
+                      <p className="text-xs text-gray-500 mt-1">多个细节用分号分隔</p>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-400 mb-2">产品描述（营销文案）</h4>
                       <Field
                         label=""
                         value={analysis.description}
                         onChange={v => handleFieldChange('description', v)}
                         editing={editing}
-                        placeholder="详细描述这件产品的外观、特征、设计细节..."
+                        placeholder="简洁的营销文案，1-2句话描述产品卖点..."
                         multiline
                       />
-                      <p className="text-xs text-gray-500 mt-2">
-                        此描述将作为生成图片的核心参考，请确保描述准确
-                      </p>
                     </div>
 
                     {/* Action Buttons */}
@@ -370,9 +410,13 @@ export default function AnalysisPage() {
                               if (data) {
                                 setAnalysis({
                                   product_type: data.product_type || '',
-                                  color: data.color || '',
-                                  material: data.material || '',
-                                  style: data.style || '',
+                                  color_main: data.color_main || '',
+                                  color_accents: data.color_accents || '',
+                                  material_texture: data.material_texture || '',
+                                  logo_position: data.logo_position || '',
+                                  logo_style: data.logo_style || '',
+                                  special_features: data.special_features || [],
+                                  silhouette: data.silhouette || '',
                                   description: data.description || '',
                                 })
                               }

@@ -42,15 +42,28 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const prompt = `You are a professional product analyst. Look at this image and analyze the product. Provide a detailed description in JSON format:
+    const prompt = `You are a professional product analyst for e-commerce photography. Look at this image and analyze the product in detail for AI image generation purposes.
+
+Provide a structured analysis in JSON format with these exact fields:
 
 {
-  "product_type": "The type of product - be specific like 'running shoes', 'leather handbag', 'cotton t-shirt', 'wool sweater'",
-  "color": "The main colors present - be specific like 'pure white', 'navy blue with white accents', 'black and red'",
-  "material": "The main material(s) - like 'genuine leather', 'canvas', 'cotton blend', 'synthetic fabric'",
-  "style": "The overall style - like 'casual sporty', 'business formal', 'streetwear', 'vintage retro', 'minimalist'",
-  "description": "A detailed 2-3 sentence description of this product including its key features, design elements, and visual characteristics."
+  "product_type": "Product type - be specific like 'ski jacket', 'down puffer coat', 'running shoes', 'leather crossbody bag'",
+  "color_main": "Primary/main color of the product, e.g. 'deep black', 'pure white', 'navy blue'",
+  "color_accents": "Secondary colors, accent colors, or color blocking details, e.g. 'white piping on sleeves', 'red logo on left chest', 'black trim at cuffs and hem'",
+  "material_texture": "Material and surface texture, e.g. 'matte nylon fabric with horizontal quilted baffles', 'smooth genuine leather', 'textured knit wool with cable pattern'",
+  "logo_position": "Logo placement on the garment/accessory, e.g. 'left chest area', 'right sleeve near cuff', 'center back upper', 'front pocket flap'",
+  "logo_style": "Logo appearance - size, color, and technique, e.g. '3cm×3cm white embroidered logo', 'black reflective printed wordmark', 'small gold metal badge'",
+  "special_features": ["Feature 1 - be specific like 'waterproof taped seams', 'detachable faux fur hood', 'adjustable velcro cuffs', 'thumb holes in sleeves', 'inner fleece lining'"],
+  "silhouette": "Overall shape and fit, e.g. 'relaxed oversized fit, hip-length', 'slim tapered leg', 'structured boxy frame'",
+  "description": "A concise 1-2 sentence product description for marketing purposes - focus on key selling points and visual character"
 }
+
+CRITICAL REQUIREMENTS:
+- Extract ALL visible details accurately - logo position, texture patterns, color blocking, seam styles
+- If logo text is visible, include it in logo_style
+- List every notable feature you can identify in special_features array
+- Be as specific as possible with measurements and locations
+- If you cannot determine a field, use "not visible" or "cannot determine" instead of guessing
 
 Analyze the image carefully and provide accurate information.`
 

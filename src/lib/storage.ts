@@ -5,9 +5,13 @@ const STORAGE_KEYS = {
 
 export interface ProductAnalysis {
   product_type: string
-  color: string
-  material: string
-  style: string
+  color_main: string
+  color_accents: string
+  material_texture: string
+  logo_position: string
+  logo_style: string
+  special_features: string[]
+  silhouette: string
   description: string
 }
 

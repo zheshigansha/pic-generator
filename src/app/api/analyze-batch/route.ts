@@ -50,20 +50,30 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const prompt = `You are a professional product analyst. I will provide multiple images of the SAME product from different angles. Please analyze ALL images together and provide ONE comprehensive product description.
+    const prompt = `You are a professional product analyst for e-commerce photography. I will provide multiple images of the SAME product from different angles. Analyze ALL images together and provide ONE comprehensive structured analysis.
 
-Look carefully at ALL images - they show different views (front, back, side, detail, etc.) of the SAME product. Combine your observations from all angles to create a complete and accurate analysis.
+Provide your analysis in the following JSON format with these exact fields:
 
-Provide your analysis in the following JSON format:
 {
-  "product_type": "The complete product type - be very specific, e.g., 'low-top basketball sneakers', 'crossbody leather messenger bag', 'slim-fit denim jeans'",
-  "color": "All colors present - be specific about color placement, e.g., 'predominantly black with white midsole and red accent stitching', 'solid heather gray with navy blue trim'",
-  "material": "Main materials used - e.g., 'genuine cowhide leather with fabric lining', '98% cotton 2% elastane denim, rubber outsole'",
-  "style": "Overall style and aesthetic - e.g., 'urban streetwear with retro basketball influences', 'minimalist Scandinavian design', 'classic Americana workwear'",
-  "description": "A comprehensive 3-4 sentence description covering: the overall silhouette and shape, key design features visible from different angles, distinctive details or branding elements, and the intended use or occasion for this product."
+  "product_type": "Product type - be very specific, e.g., 'ski jacket', 'down puffer coat', 'running shoes', 'crossbody bag'",
+  "color_main": "Primary/main color, e.g. 'deep black', 'pure white', 'navy blue'",
+  "color_accents": "Secondary colors, accent colors, or color blocking details from all angles, e.g. 'white piping on sleeves and hem', 'red logo on left chest visible in front view'",
+  "material_texture": "Material and surface texture from multiple angles, e.g. 'matte nylon fabric with horizontal quilted baffles visible on front and back', 'smooth leather with visible grain texture'",
+  "logo_position": "Logo placement on the garment/accessory - note positions visible across different angles, e.g. 'left chest area (front view), right sleeve near cuff (side view)'",
+  "logo_style": "Logo appearance - size, color, and technique, e.g. '3cm×3cm white embroidered logo on left chest', 'black reflective printed wordmark'",
+  "special_features": ["Feature 1 - from multiple angles note details like 'waterproof taped seams visible on sleeve edges', 'detachable faux fur hood visible in front view'", "Feature 2 from multiple angles"],
+  "silhouette": "Overall shape and fit based on all angles, e.g. 'relaxed oversized fit hip-length visible from front, back view shows full coverage'",
+  "description": "A concise 1-2 sentence product description for marketing purposes - focus on key selling points visible across all angles"
 }
 
-IMPORTANT: Analyze ALL images carefully. They are different views of the SAME product. Your description should reflect observations from all angles combined into one coherent analysis.`
+CRITICAL REQUIREMENTS:
+- Analyze ALL images carefully - they show different views of the SAME product
+- Combine observations from all angles into one coherent analysis
+- Extract ALL visible details accurately - logo position, texture patterns, color blocking, seam styles
+- If logo text is visible, include it in logo_style
+- List every notable feature visible across all images in special_features
+- Be as specific as possible with measurements and locations
+- If you cannot determine a field, use "not visible" or "cannot determine" instead of guessing`
 
     // Build content array with all images and text
     const content: Array<{type: string, image_url?: {url: string}, text?: string}> = []

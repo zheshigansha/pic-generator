@@ -11,6 +11,7 @@ interface GenerateRequest {
   imageUrl?: string  // Reference image URL for img2img
   aspectRatio?: string
   resolution?: string
+  strength?: number   // img2img strength 0-1, higher = more faithful to reference image
 }
 
 function getApiBase() {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { prompt, imageUrl, aspectRatio = '3:4', resolution = '1K' } = await request.json() as GenerateRequest
+    const { prompt, imageUrl, aspectRatio = '3:4', resolution = '1K', strength = 0.8 } = await request.json() as GenerateRequest
 
     if (!prompt || typeof prompt !== 'string' || prompt.length > MAX_PROMPT_LENGTH) {
       return NextResponse.json({ error: 'Invalid prompt' }, { status: 400 })
@@ -56,6 +57,10 @@ export async function POST(request: NextRequest) {
 
     if (imageUrl && !isAllowedReferenceUrl(imageUrl)) {
       return NextResponse.json({ error: 'Invalid reference image URL' }, { status: 400 })
+    }
+
+    if (strength !== undefined && (typeof strength !== 'number' || strength < 0 || strength > 1)) {
+      return NextResponse.json({ error: 'Invalid strength value, must be 0-1' }, { status: 400 })
     }
 
     if (!ALLOWED_ASPECT_RATIOS.has(aspectRatio) || !ALLOWED_RESOLUTIONS.has(resolution)) {
@@ -67,7 +72,7 @@ export async function POST(request: NextRequest) {
     const model = useImg2Img ? 'flux-2/flex-image-to-image' : 'flux-2/flex-text-to-image'
 
     // Build input based on model type
-    const input: Record<string, string | boolean | string[]> = {
+    const input: Record<string, string | boolean | string[] | number> = {
       prompt,
       aspect_ratio: aspectRatio,
       resolution,
@@ -77,6 +82,8 @@ export async function POST(request: NextRequest) {
     if (useImg2Img) {
       // img2img requires input_urls (array of image URLs)
       input.input_urls = [imageUrl]
+      // strength: higher = more faithful to reference, lower = more creative freedom
+      input.strength = strength
     }
 
     // Step 1: Create task
