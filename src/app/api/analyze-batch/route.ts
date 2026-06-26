@@ -1,24 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getClientKey, rateLimit } from '@/lib/rate-limit'
 
-const API_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'
+const MAX_IMAGE_COUNT = 20
+const MAX_DATA_URL_LENGTH = 14 * 1024 * 1024
+
+function getApiUrl() {
+  return `${process.env.QWEN_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1'}/chat/completions`
+}
 
 interface AnalyzeBatchRequest {
   imageDataList: string[]
 }
 
+function isValidImageData(imageData: string) {
+  return /^data:image\/(png|jpe?g|webp);base64,/i.test(imageData) && imageData.length <= MAX_DATA_URL_LENGTH
+}
+
 export async function POST(request: NextRequest) {
+  const apiKey = process.env.QWEN_API_KEY
+  if (!apiKey) {
+    return NextResponse.json({ error: 'Qwen API key is not configured' }, { status: 503 })
+  }
+
+  const limited = rateLimit(getClientKey(request, 'analyze-batch'), 12, 60_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: 'Too many analysis requests' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(limited.retryAfter) },
+      }
+    )
+  }
+
   try {
     const { imageDataList } = await request.json() as AnalyzeBatchRequest
 
-    if (!imageDataList || !Array.isArray(imageDataList) || imageDataList.length === 0) {
+    if (!imageDataList || !Array.isArray(imageDataList) || imageDataList.length === 0 || imageDataList.length > MAX_IMAGE_COUNT) {
       return NextResponse.json(
         { error: 'Invalid image data list' },
         { status: 400 }
       )
     }
 
-    // Check first image format
-    if (!imageDataList[0] || !imageDataList[0].startsWith('data:image')) {
+    if (!imageDataList.every(isValidImageData)) {
       return NextResponse.json(
         { error: 'Invalid image data format' },
         { status: 400 }
@@ -57,10 +82,10 @@ IMPORTANT: Analyze ALL images carefully. They are different views of the SAME pr
       text: prompt,
     })
 
-    const response = await fetch(API_URL, {
+    const response = await fetch(getApiUrl(), {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.QWEN_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -76,8 +101,9 @@ IMPORTANT: Analyze ALL images carefully. They are different views of the SAME pr
 
     if (!response.ok) {
       const error = await response.text()
+      console.error('Qwen API error:', response.status, error)
       return NextResponse.json(
-        { error: `Qwen API error: ${response.status} - ${error}` },
+        { error: `Qwen API error: ${response.status}` },
         { status: response.status }
       )
     }

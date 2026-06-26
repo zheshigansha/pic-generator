@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
@@ -162,8 +164,39 @@ export default function GeneratePage() {
           }
 
           const data = await response.json()
+          const taskId = data.taskId
+          if (typeof taskId !== 'string') {
+            throw new Error('Generation task was not created')
+          }
 
-          for (const img of data.images) {
+          let images: Array<{ url: string; revisedPrompt?: string }> | null = null
+          for (let attempt = 0; attempt < 60; attempt++) {
+            setProgress({
+              current: currentCount,
+              total: totalImages,
+              message: `等待生成结果: ${scene.name || '场景'} (${i + 1}/${count})`,
+            })
+
+            await new Promise(resolve => setTimeout(resolve, 3000))
+
+            const statusResponse = await fetch(`/api/generate/status?taskId=${encodeURIComponent(taskId)}`)
+            const statusData = await statusResponse.json()
+
+            if (!statusResponse.ok) {
+              throw new Error(statusData.error || 'Generation status check failed')
+            }
+
+            if (statusData.state === 'success') {
+              images = statusData.images
+              break
+            }
+          }
+
+          if (!images) {
+            throw new Error('Generation timeout')
+          }
+
+          for (const img of images) {
             newImages.push({
               url: img.url,
               revisedPrompt: img.revisedPrompt || prompt,

@@ -1,7 +1,10 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import WizardLayout from '@/components/WizardLayout'
 import { useProject } from '@/components/ProjectContext'
 import {
@@ -107,8 +110,22 @@ const SURROUNDINGS_OPTIONS = [
   '电脑', '办公桌', '书架', '灯具', '绿植', '墙面',
 ]
 
+function createEmptyScene(): SceneConfigUI {
+  return {
+    id: `scene_${Date.now()}`,
+    name: '',
+    imagesCount: 1,
+    season: 'Spring',
+    subject: '人',
+    environment: '户外',
+    surroundings: [],
+    customPrompt: '',
+  }
+}
+
 export default function ScenePage() {
   const { project } = useProject()
+  const router = useRouter()
   const [items, setItems] = useState<ClothingItemDB[]>([])
   const [scenes, setScenes] = useState<SceneConfigUI[]>([])
   const [loading, setLoading] = useState(true)
@@ -146,17 +163,6 @@ export default function ScenePage() {
     loadData()
   }, [project])
 
-  const createEmptyScene = (): SceneConfigUI => ({
-    id: `scene_${Date.now()}`,
-    name: '',
-    imagesCount: 1,
-    season: 'Spring',
-    subject: '人',
-    environment: '户外',
-    surroundings: [],
-    customPrompt: '',
-  })
-
   const addScene = () => {
     if (scenes.length >= 10) {
       alert('最多添加10个场景')
@@ -189,11 +195,11 @@ export default function ScenePage() {
   }
 
   const handleSave = async () => {
-    if (!project) return
+    if (!project) return false
     setSaving(true)
     try {
       // Convert UI scenes to DB format
-      const dbScenes: SceneConfig[] = scenes.map((s, index) => ({
+      const dbScenes: SceneConfig[] = scenes.map((s) => ({
         id: s.id.startsWith('scene_') ? '' : s.id, // Empty id means insert
         name: s.name,
         imagesCount: s.imagesCount,
@@ -205,16 +211,33 @@ export default function ScenePage() {
         preset_id: undefined,
       }))
       await saveSceneConfigs(project.id, dbScenes)
+      const savedScenes = await getSceneConfigs(project.id)
+      setScenes(savedScenes.map(s => ({
+        id: s.id || `scene_${Date.now()}`,
+        name: s.name,
+        imagesCount: s.imagesCount,
+        season: s.season,
+        subject: s.subject,
+        environment: s.environment,
+        surroundings: s.surroundings || [],
+        customPrompt: s.customPrompt || '',
+      })))
       alert('场景配置已保存！')
+      return true
     } catch (e) {
       console.error('Failed to save scenes:', e)
       alert('保存失败')
+      return false
     } finally {
       setSaving(false)
     }
   }
 
-  const hasAnalysis = items.some(i => i.analysis)
+  const handleContinue = async () => {
+    const saved = await handleSave()
+    if (saved) router.push('/generate')
+  }
+
   const selectedItem = items.find(i => i.analysis)
 
   if (!project || loading) {
@@ -321,7 +344,7 @@ export default function ScenePage() {
                     min={1}
                     max={5}
                     value={scene.imagesCount}
-                    onChange={e => updateScene(scene.id, { imagesCount: Math.max(1, parseInt(e.target.value) || 1) })}
+                    onChange={e => updateScene(scene.id, { imagesCount: Math.min(5, Math.max(1, parseInt(e.target.value) || 1)) })}
                     className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm"
                   />
                 </div>
@@ -436,12 +459,13 @@ export default function ScenePage() {
             >
               {saving ? '保存中...' : '💾 保存配置'}
             </button>
-            <Link
-              href="/generate"
-              className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-medium transition-colors"
+            <button
+              onClick={handleContinue}
+              disabled={saving}
+              className="px-6 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-medium transition-colors disabled:opacity-50"
             >
-              继续：生成图片 →
-            </Link>
+              保存并继续：生成图片 →
+            </button>
           </div>
         </div>
       </div>

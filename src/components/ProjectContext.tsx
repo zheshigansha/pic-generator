@@ -1,7 +1,7 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createContext, useCallback, useContext, useState, useEffect, ReactNode } from 'react'
+import { createProject, getProject } from '@/lib/db'
 
 interface Project {
   id: string
@@ -24,35 +24,23 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const loadProject = async (projectId: string) => {
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .single()
-
-    if (error) {
+  const loadProject = useCallback(async (projectId: string) => {
+    try {
+      return await getProject(projectId) as Project
+    } catch (error) {
       console.error('Failed to load project:', error)
       return null
     }
-    return data
-  }
+  }, [])
 
-  const createNewProject = async (name: string): Promise<Project> => {
-    const { data, error } = await supabase
-      .from('projects')
-      .insert({ name, status: 'uploaded' })
-      .select()
-      .single()
-
-    if (error) throw error
-
+  const createNewProject = useCallback(async (name: string): Promise<Project> => {
+    const data = await createProject(name) as Project
     localStorage.setItem(PROJECT_ID_KEY, data.id)
     setProject(data)
     return data
-  }
+  }, [])
 
-  const refreshProject = async () => {
+  const refreshProject = useCallback(async () => {
     const projectId = localStorage.getItem(PROJECT_ID_KEY)
     if (projectId) {
       const data = await loadProject(projectId)
@@ -74,11 +62,13 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Still set loading false so UI doesn't hang
     }
     setLoading(false)
-  }
+  }, [createNewProject, loadProject])
 
   useEffect(() => {
+    // Project state is bootstrapped from localStorage and the database once on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshProject()
-  }, [])
+  }, [refreshProject])
 
   return (
     <ProjectContext.Provider value={{ project, loading, createNewProject, refreshProject }}>

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getClientKey, rateLimit } from '@/lib/rate-limit'
 
-const API_BASE = 'https://api.kie.ai'
-const API_KEY = process.env.FLUX_API_KEY!
+const DEFAULT_API_BASE = 'https://api.kie.ai'
+const MAX_PROMPT_LENGTH = 5000
+const ALLOWED_ASPECT_RATIOS = new Set(['1:1', '3:4', '4:3', '9:16', '16:9'])
+const ALLOWED_RESOLUTIONS = new Set(['1K', '2K'])
 
 interface GenerateRequest {
   prompt: string
@@ -10,46 +13,61 @@ interface GenerateRequest {
   resolution?: string
 }
 
-async function pollTaskStatus(taskId: string, maxAttempts = 60): Promise<{ url: string; revisedPrompt: string }[]> {
-  for (let i = 0; i < maxAttempts; i++) {
-    const response = await fetch(`${API_BASE}/api/v1/jobs/recordInfo?taskId=${taskId}`, {
-      headers: { 'Authorization': `Bearer ${API_KEY}` },
-    })
+function getApiBase() {
+  return process.env.FLUX_BASE_URL || DEFAULT_API_BASE
+}
 
-    const data = await response.json()
+function isAllowedReferenceUrl(imageUrl: string) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!supabaseUrl) return false
 
-    if (data.code !== 200) {
-      throw new Error(data.msg || 'Query failed')
-    }
-
-    const { state, resultJson } = data.data
-
-    if (state === 'success') {
-      const result = JSON.parse(resultJson)
-      return result.resultUrls.map((url: string) => ({ url, revisedPrompt: '' }))
-    }
-
-    if (state === 'fail') {
-      throw new Error(data.data.failMsg || 'Generation failed')
-    }
-
-    // Wait 3 seconds before next poll
-    await new Promise(resolve => setTimeout(resolve, 3000))
+  try {
+    const candidate = new URL(imageUrl)
+    const allowed = new URL(supabaseUrl)
+    return candidate.protocol === 'https:' && candidate.hostname === allowed.hostname
+  } catch {
+    return false
   }
-
-  throw new Error('Generation timeout')
 }
 
 export async function POST(request: NextRequest) {
+  const apiKey = process.env.FLUX_API_KEY
+  if (!apiKey) {
+    return NextResponse.json({ error: 'FLUX API key is not configured' }, { status: 503 })
+  }
+
+  const limited = rateLimit(getClientKey(request, 'generate'), 10, 60_000)
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: 'Too many generation requests' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(limited.retryAfter) },
+      }
+    )
+  }
+
   try {
     const { prompt, imageUrl, aspectRatio = '3:4', resolution = '1K' } = await request.json() as GenerateRequest
+
+    if (!prompt || typeof prompt !== 'string' || prompt.length > MAX_PROMPT_LENGTH) {
+      return NextResponse.json({ error: 'Invalid prompt' }, { status: 400 })
+    }
+
+    if (imageUrl && !isAllowedReferenceUrl(imageUrl)) {
+      return NextResponse.json({ error: 'Invalid reference image URL' }, { status: 400 })
+    }
+
+    if (!ALLOWED_ASPECT_RATIOS.has(aspectRatio) || !ALLOWED_RESOLUTIONS.has(resolution)) {
+      return NextResponse.json({ error: 'Invalid generation settings' }, { status: 400 })
+    }
 
     // Determine which model to use
     const useImg2Img = !!imageUrl
     const model = useImg2Img ? 'flux-2/flex-image-to-image' : 'flux-2/flex-text-to-image'
 
     // Build input based on model type
-    const input: Record<string, any> = {
+    const input: Record<string, string | boolean | string[]> = {
       prompt,
       aspect_ratio: aspectRatio,
       resolution,
@@ -62,11 +80,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Create task
-    const createResponse = await fetch(`${API_BASE}/api/v1/jobs/createTask`, {
+    const createResponse = await fetch(`${getApiBase()}/api/v1/jobs/createTask`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model,
@@ -82,12 +100,9 @@ export async function POST(request: NextRequest) {
 
     const taskId = createData.data.taskId
 
-    // Step 2: Poll for results
-    const images = await pollTaskStatus(taskId)
-
     return NextResponse.json({
       created: Date.now(),
-      images,
+      taskId,
     })
   } catch (error) {
     console.error('Generate API error:', error)

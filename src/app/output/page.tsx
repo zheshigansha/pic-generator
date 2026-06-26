@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
@@ -91,7 +93,7 @@ export default function OutputPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `visionfit-output-${Date.now()}.txt`
+    a.download = 'visionfit-output.txt'
     a.click()
     URL.revokeObjectURL(url)
   }

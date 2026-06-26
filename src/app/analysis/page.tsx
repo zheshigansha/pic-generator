@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
@@ -55,7 +57,7 @@ export default function AnalysisPage() {
       }
     }
     loadItems()
-  }, [project])
+  }, [project, selectedId])
 
   useEffect(() => {
     const loadAnalysis = async () => {
@@ -150,7 +152,11 @@ export default function AnalysisPage() {
   }
 
   const handleSave = async () => {
-    if (!selectedId || !project) return
+    console.log('handleSave called', { selectedId, projectId: project?.id, analysis })
+    if (!selectedId || !project) {
+      alert('保存失败：没有选中图片或项目未加载')
+      return
+    }
 
     setSaving(true)
     try {
@@ -162,7 +168,7 @@ export default function AnalysisPage() {
       setItems(loadedItems)
     } catch (e) {
       console.error('Failed to save analysis:', e)
-      alert('保存失败')
+      alert('保存失败: ' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setSaving(false)
     }

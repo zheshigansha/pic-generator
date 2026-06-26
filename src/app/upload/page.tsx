@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import WizardLayout from '@/components/WizardLayout'
@@ -12,6 +14,8 @@ import {
 import { uploadToStorage } from '@/lib/supabase'
 
 const MAX_IMAGES = 20
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 // Interface for uploaded items from DB (with image_url for img2img)
 interface UploadedItem {
@@ -20,15 +24,20 @@ interface UploadedItem {
   image_data: string
   image_url: string | null
   uploaded_at: string
-  analysis?: any
+  analysis?: {
+    product_type: string
+    color: string
+    material: string
+    style: string
+    description: string
+  }
 }
 
 export default function UploadPage() {
-  const { project, loading: projectLoading } = useProject()
+  const { project } = useProject()
   const [files, setFiles] = useState<{ file: File; preview: string }[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([])
-  const [loading, setLoading] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load items when project changes
@@ -40,8 +49,6 @@ export default function UploadPage() {
         setUploadedItems(items)
       } catch (e) {
         console.error('Failed to load items:', e)
-      } finally {
-        setLoading(false)
       }
     }
     loadItems()
@@ -51,7 +58,33 @@ export default function UploadPage() {
     const selectedFiles = e.target.files
     if (!selectedFiles) return
 
-    const newFiles = Array.from(selectedFiles).map(file => ({
+    const validFiles = Array.from(selectedFiles).filter(file => {
+      if (!ALLOWED_TYPES.has(file.type)) {
+        alert(`${file.name} 不是支持的图片格式`)
+        return false
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        alert(`${file.name} 超过 10MB`)
+        return false
+      }
+      return true
+    })
+
+    const replaceIndex = e.target.dataset.replaceIndex
+    if (replaceIndex !== undefined && validFiles[0]) {
+      const index = Number(replaceIndex)
+      setFiles(prev => {
+        const next = [...prev]
+        if (next[index]) URL.revokeObjectURL(next[index].preview)
+        next[index] = { file: validFiles[0], preview: URL.createObjectURL(validFiles[0]) }
+        return next
+      })
+      delete e.target.dataset.replaceIndex
+      e.target.value = ''
+      return
+    }
+
+    const newFiles = validFiles.map(file => ({
       file,
       preview: URL.createObjectURL(file),
     }))
@@ -59,10 +92,12 @@ export default function UploadPage() {
     setFiles(prev => {
       const combined = [...prev, ...newFiles]
       if (combined.length > MAX_IMAGES) {
+        combined.slice(MAX_IMAGES).forEach(item => URL.revokeObjectURL(item.preview))
         return combined.slice(0, MAX_IMAGES)
       }
       return combined
     })
+    e.target.value = ''
   }, [])
 
   const removeFile = (index: number) => {
@@ -115,6 +150,7 @@ export default function UploadPage() {
 
       await saveClothingItems(project.id, imageDataList)
       alert(`上传成功 ${files.length} 张图片！`)
+      files.forEach(item => URL.revokeObjectURL(item.preview))
       setFiles([])
 
       // Reload items
@@ -185,7 +221,10 @@ export default function UploadPage() {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium">待上传图片（{files.length}张）</h3>
                 <button
-                  onClick={() => setFiles([])}
+                  onClick={() => {
+                    files.forEach(item => URL.revokeObjectURL(item.preview))
+                    setFiles([])
+                  }}
                   className="text-sm text-red-400 hover:text-red-300"
                 >
                   清空全部
