@@ -26,6 +26,7 @@ export interface Database {
           name: string
           image_data: string
           image_url: string | null
+          processed_image_url: string | null
           uploaded_at: string
           created_at: string
         }
@@ -119,7 +120,9 @@ export interface Database {
 export interface ProductAnalysis {
   product_type: string
   color_main: string
+  color_main_hex: string   // hex like "#1A1A1A"
   color_accents: string
+  color_accents_hex: string  // hex like "#FFFFFF"
   material_texture: string
   logo_position: string
   logo_style: string

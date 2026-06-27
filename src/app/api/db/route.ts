@@ -248,6 +248,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ data: true })
       }
 
+      case 'updateClothingItemProcessedImage': {
+        const id = getString(payload, 'id', 80)
+        const processedImageUrl = optionalString(payload.processedImageUrl, 3000)
+        const { data, error } = await supabase
+          .from('clothing_items')
+          .update({ processed_image_url: processedImageUrl || null })
+          .eq('id', id)
+          .select()
+          .single()
+        if (error) throw error
+        return NextResponse.json({ data })
+      }
+
       case 'saveProductAnalysis': {
         const projectId = getString(payload, 'projectId', 80)
         const analysis = validateAnalysis(payload.analysis)

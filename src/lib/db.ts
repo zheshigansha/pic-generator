@@ -79,6 +79,10 @@ export async function deleteClothingItem(id: string) {
   return dbRequest('deleteClothingItem', { id })
 }
 
+export async function updateClothingItemProcessedImage(id: string, processedImageUrl: string) {
+  return dbRequest('updateClothingItemProcessedImage', { id, processedImageUrl })
+}
+
 // ============================================================================
 // PRODUCT ANALYSIS OPERATIONS
 // ============================================================================

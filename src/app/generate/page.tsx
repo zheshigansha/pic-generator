@@ -80,10 +80,16 @@ export default function GeneratePage() {
     // Product type
     prompt += `${a.product_type}. `
 
-    // Color details - main and accents
+    // Color - with EXACT hex as CRITICAL constraint
     prompt += `Color: ${a.color_main}. `
+    if (a.color_main_hex) {
+      prompt += `CRITICAL: The primary color MUST be exactly ${a.color_main_hex.toUpperCase()} - do not deviate. `
+    }
     if (a.color_accents) {
       prompt += `Color accents: ${a.color_accents}. `
+    }
+    if (a.color_accents_hex) {
+      prompt += `CRITICAL: The accent color MUST be exactly ${a.color_accents_hex.toUpperCase()} - do not deviate. `
     }
 
     // Material and texture
@@ -143,8 +149,9 @@ export default function GeneratePage() {
       return
     }
 
-    // Check if we have an image_url for img2img
-    if (!selectedItem.image_url) {
+    // Use processed_image_url (transparent background) for img2img if available, fallback to original
+    const refImage = selectedItem.processed_image_url || selectedItem.image_url
+    if (!refImage) {
       alert('图片未上传到云端存储，无法使用 img2img 功能。请确保 Supabase Storage 配置正确。')
       return
     }
@@ -152,7 +159,6 @@ export default function GeneratePage() {
     setGenerating(true)
     setError(null)
 
-    // Calculate total images to generate
     const totalImages = scenes.reduce((sum, s) => sum + (s.imagesCount || 1), 0)
     let currentCount = 0
     const newImages: GeneratedImage[] = []
@@ -161,18 +167,17 @@ export default function GeneratePage() {
       for (const scene of scenes) {
         const count = scene.imagesCount || 1
         for (let i = 0; i < count; i++) {
+          currentCount++
           setProgress({
-            current: ++currentCount,
+            current: currentCount,
             total: totalImages,
             message: `生成中: ${scene.name || '场景'} (${i + 1}/${count})`,
           })
 
           const prompt = buildPrompt(selectedItem, scene)
-
-          // Pass imageUrl for img2img
           const requestBody: { prompt: string; imageUrl: string; strength: number } = {
             prompt,
-            imageUrl: selectedItem.image_url!,
+            imageUrl: refImage,
             strength: imgStrength,
           }
 
@@ -231,12 +236,10 @@ export default function GeneratePage() {
         }
       }
 
-      // Save to Supabase DB
       if (newImages.length > 0) {
         await saveGeneratedImages(project.id, newImages)
       }
 
-      // Reload from DB to get IDs
       const savedImages = await getGeneratedImages(project.id)
       setGeneratedImages(savedImages)
     } catch (err) {

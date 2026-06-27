@@ -48,8 +48,10 @@ Provide a structured analysis in JSON format with these exact fields:
 
 {
   "product_type": "Product type - be specific like 'ski jacket', 'down puffer coat', 'running shoes', 'leather crossbody bag'",
-  "color_main": "Primary/main color of the product, e.g. 'deep black', 'pure white', 'navy blue'",
+  "color_main": "Primary/main color in words, e.g. 'deep black', 'pure white', 'navy blue'",
+  "color_main_hex": "The EXACT hex color code for the primary color, e.g. '#1A1A1A' or '#F5F5F5' - extract from the image precisely",
   "color_accents": "Secondary colors, accent colors, or color blocking details, e.g. 'white piping on sleeves', 'red logo on left chest', 'black trim at cuffs and hem'",
+  "color_accents_hex": "The EXACT hex color code for the accent/secondary color, e.g. '#FFFFFF' or '#CC0000' - extract from the image precisely",
   "material_texture": "Material and surface texture, e.g. 'matte nylon fabric with horizontal quilted baffles', 'smooth genuine leather', 'textured knit wool with cable pattern'",
   "logo_position": "Logo placement on the garment/accessory, e.g. 'left chest area', 'right sleeve near cuff', 'center back upper', 'front pocket flap'",
   "logo_style": "Logo appearance - size, color, and technique, e.g. '3cm×3cm white embroidered logo', 'black reflective printed wordmark', 'small gold metal badge'",

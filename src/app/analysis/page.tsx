@@ -77,9 +77,13 @@ export default function AnalysisPage() {
         if (projectAnalysis) {
           setAnalysis({
             product_type: projectAnalysis.product_type || '',
-            color: projectAnalysis.color || '',
-            material: projectAnalysis.material || '',
-            style: projectAnalysis.style || '',
+            color_main: (projectAnalysis as any).color_main || '',
+            color_accents: (projectAnalysis as any).color_accents || '',
+            material_texture: (projectAnalysis as any).material_texture || '',
+            logo_position: (projectAnalysis as any).logo_position || '',
+            logo_style: (projectAnalysis as any).logo_style || '',
+            special_features: (projectAnalysis as any).special_features || [],
+            silhouette: (projectAnalysis as any).silhouette || '',
             description: projectAnalysis.description || '',
           })
           setSaved(true)

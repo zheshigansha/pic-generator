@@ -10,6 +10,7 @@ import {
   saveClothingItems,
   getClothingItemsWithAnalysis,
   deleteClothingItem,
+  updateClothingItemProcessedImage,
 } from '@/lib/db'
 import { uploadToStorage } from '@/lib/supabase'
 
@@ -17,12 +18,13 @@ const MAX_IMAGES = 20
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
-// Interface for uploaded items from DB (with image_url for img2img)
 interface UploadedItem {
   id: string
   name: string
   image_data: string
   image_url: string | null
+  processed_image_data?: string
+  processed_image_url?: string | null
   uploaded_at: string
   analysis?: {
     product_type: string
@@ -40,7 +42,6 @@ export default function UploadPage() {
   const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Load items when project changes
   useEffect(() => {
     const loadItems = async () => {
       if (!project) return
@@ -122,7 +123,6 @@ export default function UploadPage() {
     try {
       const imageDataList = await Promise.all(
         files.map(async ({ file, preview }) => {
-          // Read as base64 for display
           const response = await fetch(preview)
           const blob = await response.blob()
           const base64 = await new Promise<string>((resolve) => {
@@ -131,7 +131,6 @@ export default function UploadPage() {
             reader.readAsDataURL(blob)
           })
 
-          // Upload to Supabase Storage
           const imagePath = `${project.id}/${Date.now()}_${file.name}`
           let imageUrl: string | undefined
           try {
@@ -149,13 +148,45 @@ export default function UploadPage() {
       )
 
       await saveClothingItems(project.id, imageDataList)
-      alert(`上传成功 ${files.length} 张图片！`)
+      alert(`上传成功 ${files.length} 张图片！正在去除背景...`)
       files.forEach(item => URL.revokeObjectURL(item.preview))
       setFiles([])
 
-      // Reload items
       const items = await getClothingItemsWithAnalysis(project.id)
-      setUploadedItems(items)
+
+      const itemsWithBg: UploadedItem[] = []
+      for (const item of items) {
+        try {
+          const resp = await fetch('/api/remove-bg', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageData: item.image_data,
+              projectId: project.id,
+              itemId: item.id,
+            }),
+          })
+          if (resp.ok) {
+            const data = await resp.json()
+            if (data.processedImageUrl) {
+              await updateClothingItemProcessedImage(item.id, data.processedImageUrl)
+            }
+            itemsWithBg.push({
+              ...item,
+              processed_image_data: data.processedImageData,
+              processed_image_url: data.processedImageUrl ?? null,
+            })
+          } else {
+            console.warn('Background removal failed for item', item.id, resp.status)
+            itemsWithBg.push(item as UploadedItem)
+          }
+        } catch (e) {
+          console.warn('Background removal error for item', item.id, e)
+          itemsWithBg.push(item as UploadedItem)
+        }
+      }
+
+      setUploadedItems(itemsWithBg)
     } catch (error) {
       console.error('Upload error:', error)
       alert('上传失败')
@@ -181,13 +212,11 @@ export default function UploadPage() {
   return (
     <WizardLayout currentStep={1}>
       <div className="max-w-5xl mx-auto">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white">上传图片</h1>
           <p className="text-gray-400 mt-1">上传同一产品的不同角度图片（最多 {MAX_IMAGES} 张）</p>
         </div>
 
-        {/* Upload Area */}
         <div className="mb-8">
           <div className="border-2 border-dashed border-gray-600 rounded-2xl p-8 text-center hover:border-blue-500 transition-colors relative">
             <input
@@ -209,13 +238,11 @@ export default function UploadPage() {
               </div>
             </label>
 
-            {/* Upload count badge */}
             <div className="absolute top-4 right-4 bg-gray-700 px-3 py-1 rounded-full text-sm text-gray-300">
               {files.length} / {MAX_IMAGES}
             </div>
           </div>
 
-          {/* Preview Grid */}
           {files.length > 0 && (
             <div className="mt-6">
               <div className="flex items-center justify-between mb-4">
@@ -259,7 +286,6 @@ export default function UploadPage() {
                 ))}
               </div>
 
-              {/* Upload Button */}
               <button
                 onClick={handleUpload}
                 disabled={files.length === 0 || uploading}
@@ -275,10 +301,8 @@ export default function UploadPage() {
           )}
         </div>
 
-        {/* Divider */}
         {uploadedCount > 0 && <div className="border-t border-gray-700 mb-8" />}
 
-        {/* Already Uploaded */}
         {uploadedCount > 0 && (
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -322,7 +346,6 @@ export default function UploadPage() {
           </div>
         )}
 
-        {/* Continue Button */}
         {hasEnoughForAnalysis && (
           <div className="mt-8 text-center">
             <Link
