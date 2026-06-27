@@ -36,6 +36,47 @@ FLUX_API_KEY=your-flux-api-key
 FLUX_BASE_URL=https://api.kie.ai
 ```
 
+## Supabase 初始化配置
+
+### 1. 运行数据库 Migration
+
+在 Supabase Dashboard → SQL Editor 中依次运行以下文件：
+```bash
+supabase/migrations/001_initial_schema.sql
+supabase/migrations/002_add_image_url.sql
+supabase/migrations/003_security_hardening.sql
+supabase/migrations/004_add_processed_image_url.sql
+supabase/migrations/005_add_color_hex_columns.sql
+supabase/migrations/006_add_brand_profiles.sql
+supabase/migrations/007_add_brand_assets.sql
+```
+
+### 2. 创建 Storage Bucket
+
+在 Supabase Dashboard → Storage → Create new bucket：
+- Bucket name: `clothing-images`
+- Public: ✅（勾选）
+- Allowed MIME types: `image/*`
+
+再创建一个品牌资产 bucket：
+- Bucket name: `brand-assets`
+- Public: ✅（勾选）
+- Allowed MIME types: `image/*,.pdf`
+
+### 3. Storage CORS 配置（如上传报错）
+
+如果文件上传时报 CORS 错误，在 Storage → Settings 中配置 CORS 规则：
+```json
+[
+  {
+    "origin": ["https://your-domain.com"],
+    "methods": ["GET", "POST", "DELETE"],
+    "headers": ["Authorization", "Content-Type", "x-client-info"]
+  }
+]
+```
+上线后需填入正式域名。本地开发（localhost）默认通常已放行，如遇问题再加。
+
 ## 工作流程
 
 ```
