@@ -29,6 +29,22 @@ export default function StepNav({ currentStep }: StepNavProps) {
       </div>
 
       <ul className="space-y-1">
+        <li>
+          <Link
+            href="/brand"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-gray-300 hover:bg-gray-700 hover:text-white"
+          >
+            <span className="w-6 h-6 rounded-full flex items-center justify-center text-sm font-medium bg-gray-600 text-white">
+              ⚙
+            </span>
+            <span className="font-medium">品牌设置</span>
+          </Link>
+        </li>
+      </ul>
+
+      <div className="border-t border-gray-700 my-4" />
+
+      <ul className="space-y-1">
         {steps.map((step) => {
           const isActive = currentStep === step.id
           const isCompleted = currentStep > step.id

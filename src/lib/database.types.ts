@@ -41,7 +41,10 @@ export interface Database {
           id: string
           project_id: string
           product_type: string | null
-          color: string | null
+          color_main: string | null
+          color_main_hex: string | null
+          color_accents: string | null
+          color_accents_hex: string | null
           material: string | null
           style: string | null
           description: string | null
@@ -111,6 +114,48 @@ export interface Database {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['selected_images']['Insert']>
+      }
+      brand_profiles: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          contact_email: string | null
+          contact_phone: string | null
+          contact_whatsapp: string | null
+          website_url: string | null
+          logo_url: string | null
+          watermark_style: string
+          watermark_position: string
+          qr_code_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['brand_profiles']['Row'], 'id' | 'created_at' | 'updated_at'> & {
+          id?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['brand_profiles']['Insert']>
+      }
+      brand_assets: {
+        Row: {
+          id: string
+          brand_id: string
+          asset_type: string
+          file_name: string | null
+          file_url: string
+          file_size: number | null
+          mime_type: string | null
+          description: string | null
+          usage_count: number
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['brand_assets']['Row'], 'id' | 'created_at'> & {
+          id?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['brand_assets']['Insert']>
       }
     }
   }

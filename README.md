@@ -152,6 +152,13 @@ vision-fit-pro/
 
 ## 版本记录
 
+### Phase 1 (2026-06-27)
+- **品牌资料库**：brand_profiles + brand_assets 表，完整 CRUD
+- **品牌设置页** `/brand`：信息编辑 + 资产上传
+- **Storage bucket** `brand-assets`：需在 Supabase Dashboard 手动创建并设置 Public
+- 侧边栏新增"品牌设置"入口
+- 数据库类型定义更新
+
 ### 初版-MVP (2026-06-27)
 - 基础数据流跑通（上传 → 分析 → 场景 → 生成 → 审核 → 输出）
 - 所有数据切换到 Supabase DB 持久化
@@ -166,4 +173,4 @@ vision-fit-pro/
 
 ---
 
-*最后更新: 2026-06-27*
+*最后更新: 2026-06-27（Phase 1）*
