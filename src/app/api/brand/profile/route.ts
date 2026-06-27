@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { verifySession } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,16 +8,18 @@ const supabase = createClient(
 )
 
 export async function GET(request: NextRequest) {
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!verifySession(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
+  try {
+    // Get brand profile by user_id from cookie-based session
+    // Since we use a single-password auth, we store user_id in a separate table
+    // For now, return the first brand profile (single-user app)
     const { data, error } = await supabase
       .from('brand_profiles')
       .select('*')
-      .eq('user_id', user.id)
+      .limit(1)
       .single()
 
     if (error && error.code !== 'PGRST116') {
@@ -33,12 +36,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!verifySession(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
+  try {
     const body = await request.json()
     const {
       name,
@@ -56,11 +58,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Brand name is required' }, { status: 400 })
     }
 
-    // Check if profile exists
+    // Get existing profile (single-user, just take first)
     const { data: existing } = await supabase
       .from('brand_profiles')
       .select('id')
-      .eq('user_id', user.id)
+      .limit(1)
       .single()
 
     let result
@@ -86,11 +88,10 @@ export async function POST(request: NextRequest) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       result = data
     } else {
-      // Create
+      // Create (no user_id since we use single-password auth)
       const { data, error } = await supabase
         .from('brand_profiles')
         .insert({
-          user_id: user.id,
           name,
           contact_email,
           contact_phone,
