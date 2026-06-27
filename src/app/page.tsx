@@ -23,7 +23,9 @@ export default function Home() {
         </div>
 
         {/* Workflow Steps */}
-        <div className="grid md:grid-cols-5 gap-4 mb-12">
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold mb-4 text-gray-300">主工作流</h3>
+          <div className="grid md:grid-cols-5 gap-4 mb-4">
           {[
             { num: 1, name: '上传图片', desc: '上传服装多角度图', href: '/upload', color: 'blue' },
             { num: 2, name: '产品分析', desc: 'AI 分析服装细节', href: '/analysis', color: 'purple' },
@@ -48,6 +50,18 @@ export default function Home() {
               </Link>
             </div>
           ))}
+        </div>
+
+        {/* Brand Settings */}
+        <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700">
+          <h3 className="text-lg font-semibold mb-4">品牌设置</h3>
+          <p className="text-sm text-gray-400 mb-4">配置品牌信息、资质文件、联系方式，用于生成图片时嵌入品牌水印。</p>
+          <Link
+            href="/brand"
+            className="inline-block bg-orange-600/20 hover:bg-orange-600/30 text-orange-400 px-4 py-2 rounded-lg text-sm transition-colors"
+          >
+            进入品牌设置 →
+          </Link>
         </div>
 
         {/* Quick Info */}
