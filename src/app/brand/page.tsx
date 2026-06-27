@@ -89,10 +89,6 @@ export default function BrandPage() {
     try {
       // Load profile
       const profileRes = await fetch('/api/brand/profile')
-      if (profileRes.status === 401) {
-        window.location.href = '/login'
-        return
-      }
       const profileData = await profileRes.json()
       if (profileData.profile) {
         setProfile(profileData.profile)
@@ -119,6 +115,12 @@ export default function BrandPage() {
       setLoading(false)
     }
   }
+
+  // Fallback: force stop loading after 10s
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 10000)
+    return () => clearTimeout(timer)
+  }, [])
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault()

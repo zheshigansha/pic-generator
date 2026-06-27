@@ -26,34 +26,35 @@ export default function Home() {
         <div className="mb-8">
           <h3 className="text-lg font-semibold mb-4 text-gray-300">主工作流</h3>
           <div className="grid md:grid-cols-5 gap-4 mb-4">
-          {[
-            { num: 1, name: '上传图片', desc: '上传服装多角度图', href: '/upload', color: 'blue' },
-            { num: 2, name: '产品分析', desc: 'AI 分析服装细节', href: '/analysis', color: 'purple' },
-            { num: 3, name: '场景设计', desc: '选择/设计场景', href: '/scene', color: 'yellow' },
-            { num: 4, name: '生成图片', desc: 'AI 生成模特图', href: '/generate', color: 'pink' },
-            { num: 5, name: '审核发布', desc: '选择并发布', href: '/review', color: 'green' },
-          ].map((step) => (
-            <div
-              key={step.num}
-              className={`bg-gray-800/50 rounded-xl p-5 border border-gray-700 hover:border-${step.color}-500 transition-colors text-center`}
-            >
-              <div className={`w-10 h-10 bg-${step.color}-600 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-3`}>
-                {step.num}
-              </div>
-              <h3 className="text-lg font-semibold mb-1">{step.name}</h3>
-              <p className="text-sm text-gray-400 mb-3">{step.desc}</p>
-              <Link
-                href={step.href}
-                className={`inline-block bg-${step.color}-600/20 hover:bg-${step.color}-600/30 text-${step.color}-400 px-4 py-1.5 rounded-lg text-sm transition-colors`}
+            {[
+              { num: 1, name: '上传图片', desc: '上传服装多角度图', href: '/upload', color: 'blue' },
+              { num: 2, name: '产品分析', desc: 'AI 分析服装细节', href: '/analysis', color: 'purple' },
+              { num: 3, name: '场景设计', desc: '选择/设计场景', href: '/scene', color: 'yellow' },
+              { num: 4, name: '生成图片', desc: 'AI 生成模特图', href: '/generate', color: 'pink' },
+              { num: 5, name: '审核发布', desc: '选择并发布', href: '/review', color: 'green' },
+            ].map((step) => (
+              <div
+                key={step.num}
+                className={`bg-gray-800/50 rounded-xl p-5 border border-gray-700 hover:border-${step.color}-500 transition-colors text-center`}
               >
-                进入 →
-              </Link>
-            </div>
-          ))}
+                <div className={`w-10 h-10 bg-${step.color}-600 rounded-full flex items-center justify-center text-lg font-bold mx-auto mb-3`}>
+                  {step.num}
+                </div>
+                <h3 className="text-lg font-semibold mb-1">{step.name}</h3>
+                <p className="text-sm text-gray-400 mb-3">{step.desc}</p>
+                <Link
+                  href={step.href}
+                  className={`inline-block bg-${step.color}-600/20 hover:bg-${step.color}-600/30 text-${step.color}-400 px-4 py-1.5 rounded-lg text-sm transition-colors`}
+                >
+                  进入 →
+                </Link>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Brand Settings */}
-        <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700">
+        <div className="bg-gray-800/30 rounded-xl p-6 border border-gray-700 mb-8">
           <h3 className="text-lg font-semibold mb-4">品牌设置</h3>
           <p className="text-sm text-gray-400 mb-4">配置品牌信息、资质文件、联系方式，用于生成图片时嵌入品牌水印。</p>
           <Link

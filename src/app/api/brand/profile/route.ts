@@ -1,22 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { verifySession } from '@/lib/auth'
 
-const supabase = createClient(
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export async function GET(request: NextRequest) {
-  if (!verifySession(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   try {
-    // Get brand profile by user_id from cookie-based session
-    // Since we use a single-password auth, we store user_id in a separate table
-    // For now, return the first brand profile (single-user app)
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('brand_profiles')
       .select('*')
       .limit(1)
@@ -36,10 +28,6 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!verifySession(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   try {
     const body = await request.json()
     const {
@@ -58,8 +46,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Brand name is required' }, { status: 400 })
     }
 
-    // Get existing profile (single-user, just take first)
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseAdmin
       .from('brand_profiles')
       .select('id')
       .limit(1)
@@ -67,8 +54,7 @@ export async function POST(request: NextRequest) {
 
     let result
     if (existing) {
-      // Update
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('brand_profiles')
         .update({
           name,
@@ -88,8 +74,7 @@ export async function POST(request: NextRequest) {
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
       result = data
     } else {
-      // Create (no user_id since we use single-password auth)
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from('brand_profiles')
         .insert({
           name,

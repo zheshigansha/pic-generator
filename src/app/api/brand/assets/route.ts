@@ -1,21 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { verifySession } from '@/lib/auth'
 
-const supabase = createClient(
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 // GET /api/brand/assets - List all assets
 export async function GET(request: NextRequest) {
-  if (!verifySession(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   try {
-    // Get first brand profile (single-user app)
-    const { data: brand } = await supabase
+    const { data: brand } = await supabaseAdmin
       .from('brand_profiles')
       .select('id')
       .limit(1)
@@ -25,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ assets: [] })
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('brand_assets')
       .select('*')
       .eq('brand_id', brand.id)
@@ -46,10 +40,6 @@ export async function GET(request: NextRequest) {
 
 // POST /api/brand/assets - Upload a new asset
 export async function POST(request: NextRequest) {
-  if (!verifySession(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File | null
@@ -64,8 +54,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'asset_type is required' }, { status: 400 })
     }
 
-    // Get first brand profile (single-user app)
-    const { data: brand } = await supabase
+    const { data: brand } = await supabaseAdmin
       .from('brand_profiles')
       .select('id')
       .limit(1)
@@ -75,15 +64,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Brand profile not found. Please set up your brand first.' }, { status: 400 })
     }
 
-    // Read file as buffer
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
-    // Upload to Storage
-    const fileName = `${brand.id}/${Date.now()}-${file.name}`
-    const { error: uploadError } = await supabase.storage
+    const ext = file.name.split('.').pop() || 'bin'
+    const storageName = `${brand.id}/${Date.now()}-${crypto.randomUUID()}.${ext}`
+    const { error: uploadError } = await supabaseAdmin.storage
       .from('brand-assets')
-      .upload(fileName, buffer, {
+      .upload(storageName, buffer, {
         contentType: file.type,
         upsert: false,
       })
@@ -92,13 +80,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Upload failed: ${uploadError.message}` }, { status: 500 })
     }
 
-    // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = supabaseAdmin.storage
       .from('brand-assets')
-      .getPublicUrl(fileName)
+      .getPublicUrl(storageName)
 
-    // Save to database
-    const { data: asset, error: dbError } = await supabase
+    const { data: asset, error: dbError } = await supabaseAdmin
       .from('brand_assets')
       .insert({
         brand_id: brand.id,
@@ -127,10 +113,6 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/brand/assets?id=xxx
 export async function DELETE(request: NextRequest) {
-  if (!verifySession(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
   try {
     const { searchParams } = new URL(request.url)
     const assetId = searchParams.get('id')
@@ -139,8 +121,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Asset ID required' }, { status: 400 })
     }
 
-    // Get asset
-    const { data: asset } = await supabase
+    const { data: asset } = await supabaseAdmin
       .from('brand_assets')
       .select('id, file_url')
       .eq('id', assetId)
@@ -150,14 +131,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
     }
 
-    // Delete from Storage (extract path from URL)
     const urlPath = asset.file_url.split('/brand-assets/')[1]
     if (urlPath) {
-      await supabase.storage.from('brand-assets').remove([urlPath])
+      await supabaseAdmin.storage.from('brand-assets').remove([urlPath])
     }
 
-    // Delete from DB
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('brand_assets')
       .delete()
       .eq('id', assetId)

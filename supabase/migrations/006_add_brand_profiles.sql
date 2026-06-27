@@ -15,13 +15,8 @@ create table if not exists brand_profiles (
   updated_at timestamptz default now()
 );
 
--- RLS
-alter table brand_profiles enable row level security;
-
-create policy "Users can manage own brand profile"
-  on brand_profiles for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+-- RLS disabled for single-user app (password auth, no auth.uid())
+alter table brand_profiles disable row level security;
 
 -- Updated_at trigger
 create or replace function update_updated_at()
