@@ -62,9 +62,15 @@ export async function getClothingItemsWithAnalysis(projectId: string) {
   const normalizedAnalysis = analysis
     ? {
         product_type: analysis.product_type || '',
-        color: analysis.color || '',
-        material: analysis.material || '',
-        style: analysis.style || '',
+        color_main: analysis.color_main || '',
+        color_main_hex: analysis.color_main_hex || '',
+        color_accents: analysis.color_accents || '',
+        color_accents_hex: analysis.color_accents_hex || '',
+        material_texture: analysis.material || '',
+        logo_position: '',
+        logo_style: '',
+        special_features: [],
+        silhouette: analysis.style || '',
         description: analysis.description || '',
       }
     : undefined

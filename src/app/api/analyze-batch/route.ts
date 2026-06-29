@@ -110,10 +110,10 @@ CRITICAL REQUIREMENTS:
     })
 
     if (!response.ok) {
-      const error = await response.text()
-      console.error('Qwen API error:', response.status, error)
+      const errorBody = await response.text()
+      console.error('Qwen API error:', response.status, errorBody)
       return NextResponse.json(
-        { error: `Qwen API error: ${response.status}` },
+        { error: `Qwen API error: ${response.status}`, detail: errorBody },
         { status: response.status }
       )
     }

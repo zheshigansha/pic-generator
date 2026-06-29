@@ -157,6 +157,25 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['brand_assets']['Insert']>
       }
+      platform_configs: {
+        Row: {
+          id: string
+          platform: string
+          content_format: string
+          aspect_ratio: string
+          width: number
+          height: number
+          max_file_size_mb: number | null
+          description: string | null
+          is_active: boolean
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['platform_configs']['Row'], 'id' | 'created_at'> & {
+          id?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['platform_configs']['Insert']>
+      }
     }
   }
 }

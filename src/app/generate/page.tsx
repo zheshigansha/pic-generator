@@ -15,6 +15,16 @@ import {
 import type { ClothingItemDB } from '@/components/types'
 import type { SceneConfig, GeneratedImage } from '@/lib/database.types'
 
+interface PlatformConfig {
+  id: string
+  platform: string
+  content_format: string
+  aspect_ratio: string
+  width: number
+  height: number
+  description: string | null
+}
+
 export default function GeneratePage() {
   const { project } = useProject()
   const [items, setItems] = useState<ClothingItemDB[]>([])
@@ -26,6 +36,35 @@ export default function GeneratePage() {
   const [selectedRefImage, setSelectedRefImage] = useState<ClothingItemDB | null>(null)
   const [loading, setLoading] = useState(true)
   const [imgStrength, setImgStrength] = useState(0.8) // img2img strength: 0-1, higher = more faithful to original
+
+  // Platform config state
+  const [platformConfigs, setPlatformConfigs] = useState<PlatformConfig[]>([])
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('')
+  const [selectedFormat, setSelectedFormat] = useState<string>('')
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('3:4')
+
+  // Load platform configs on mount
+  useEffect(() => {
+    const loadPlatformConfigs = async () => {
+      try {
+        const res = await fetch('/api/platform/configs')
+        const data = await res.json()
+        if (data.configs && data.configs.length > 0) {
+          setPlatformConfigs(data.configs)
+          // Default to Facebook + post (1:1)
+          const defaultConfig = data.configs.find((c: PlatformConfig) => c.platform === 'facebook' && c.content_format === 'post')
+          if (defaultConfig) {
+            setSelectedPlatform('facebook')
+            setSelectedFormat('post')
+            setSelectedAspectRatio(defaultConfig.aspect_ratio)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load platform configs:', e)
+      }
+    }
+    loadPlatformConfigs()
+  }, [])
 
   useEffect(() => {
     const loadData = async () => {
@@ -56,6 +95,21 @@ export default function GeneratePage() {
     }
     loadData()
   }, [project])
+
+  // Get available formats for selected platform
+  const availableFormats = platformConfigs
+    .filter(c => c.platform === selectedPlatform)
+    .map(c => ({ format: c.content_format, aspect_ratio: c.aspect_ratio, description: c.description }))
+
+  // Handle platform/formatted change
+  const handleFormatChange = (platform: string, format: string) => {
+    setSelectedPlatform(platform)
+    setSelectedFormat(format)
+    const config = platformConfigs.find(c => c.platform === platform && c.content_format === format)
+    if (config) {
+      setSelectedAspectRatio(config.aspect_ratio)
+    }
+  }
 
   // Get all items with analysis for prompt building
   const analyzedItems = items.filter(i => i.analysis)
@@ -175,10 +229,11 @@ export default function GeneratePage() {
           })
 
           const prompt = buildPrompt(selectedItem, scene)
-          const requestBody: { prompt: string; imageUrl: string; strength: number } = {
+          const requestBody: { prompt: string; imageUrl: string; strength: number; aspectRatio: string } = {
             prompt,
             imageUrl: refImage,
             strength: imgStrength,
+            aspectRatio: selectedAspectRatio,
           }
 
           const response = await fetch('/api/generate', {
@@ -294,6 +349,70 @@ export default function GeneratePage() {
           <p className="text-gray-400 mt-1">
             共 {scenes.length} 个场景，预计生成 {totalToGenerate} 张图片
           </p>
+        </div>
+
+        {/* Platform Selection */}
+        <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700 mb-6">
+          <div className="flex items-center gap-6 flex-wrap">
+            <div>
+              <label className="text-xs text-gray-400 block mb-2">平台</label>
+              <div className="flex gap-2">
+                {['facebook'].map(p => (
+                  <button
+                    key={p}
+                    onClick={() => {
+                      const configs = platformConfigs.filter(c => c.platform === p)
+                      if (configs.length > 0) {
+                        handleFormatChange(p, configs[0].content_format)
+                      }
+                    }}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      selectedPlatform === p
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {p === 'facebook' ? 'Facebook' : p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {selectedPlatform && (
+              <div>
+                <label className="text-xs text-gray-400 block mb-2">内容格式</label>
+                <div className="flex gap-2 flex-wrap">
+                  {availableFormats.map(f => (
+                    <button
+                      key={f.format}
+                      onClick={() => handleFormatChange(selectedPlatform, f.format)}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        selectedFormat === f.format
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                      title={f.description || ''}
+                    >
+                      {f.format === 'reel' ? 'Reel' :
+                       f.format === 'story' ? 'Story' :
+                       f.format === 'post' ? 'Post' :
+                       f.format === 'carousel' ? 'Carousel' : f.format}
+                      <span className="ml-1 text-xs opacity-70">{f.aspect_ratio}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedAspectRatio && (
+              <div className="ml-auto text-right">
+                <p className="text-xs text-gray-400">输出尺寸</p>
+                <p className="text-white font-medium">
+                  {platformConfigs.find(c => c.platform === selectedPlatform && c.content_format === selectedFormat)?.width || '?'} × {platformConfigs.find(c => c.platform === selectedPlatform && c.content_format === selectedFormat)?.height || '?'}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Product & Scenes Summary */}

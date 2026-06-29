@@ -57,7 +57,9 @@ function validateAnalysis(value: unknown): ProductAnalysis {
   return {
     product_type: optionalString(value.product_type, 300),
     color_main: optionalString(value.color_main, 300),
+    color_main_hex: optionalString(value.color_main_hex, 20),
     color_accents: optionalString(value.color_accents, 500),
+    color_accents_hex: optionalString(value.color_accents_hex, 20),
     material_texture: optionalString(value.material_texture, 500),
     logo_position: optionalString(value.logo_position, 300),
     logo_style: optionalString(value.logo_style, 300),
@@ -265,20 +267,28 @@ export async function POST(request: NextRequest) {
         const projectId = getString(payload, 'projectId', 80)
         const analysis = validateAnalysis(payload.analysis)
         const rawResponse = optionalString(payload.rawResponse, 20_000) || null
+        console.log('[saveProductAnalysis] projectId:', projectId)
+        console.log('[saveProductAnalysis] analysis:', JSON.stringify(analysis))
         const { data, error } = await supabase
           .from('product_analysis')
           .upsert({
             project_id: projectId,
             product_type: analysis.product_type,
-            color: analysis.color,
-            material: analysis.material,
-            style: analysis.style,
+            color: analysis.color_main,
+            color_main_hex: analysis.color_main_hex || null,
+            color_accents_hex: analysis.color_accents || null,
+            material: analysis.material_texture,
+            style: analysis.silhouette,
             description: analysis.description,
             raw_response: rawResponse,
           }, { onConflict: 'project_id' })
           .select()
           .single()
-        if (error) throw error
+        if (error) {
+          console.error('[saveProductAnalysis] supabase error:', JSON.stringify(error))
+          throw error
+        }
+        console.log('[saveProductAnalysis] success:', JSON.stringify(data))
         return NextResponse.json({ data })
       }
 
@@ -401,6 +411,7 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('Database API error:', error)
-    return errorResponse(error instanceof Error ? error.message : 'Database operation failed', 500)
+    const message = error instanceof Error ? error.message : (error as Record<string, unknown>).message || JSON.stringify(error)
+    return NextResponse.json({ error: message, cause: JSON.stringify(error) }, { status: 500 })
   }
 }

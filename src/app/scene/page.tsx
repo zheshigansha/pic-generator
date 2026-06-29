@@ -285,7 +285,7 @@ export default function ScenePage() {
               <div>
                 <p className="font-medium">{selectedItem.name}</p>
                 <p className="text-sm text-gray-400">
-                  {selectedItem.analysis.product_type} | {selectedItem.analysis.color} | {selectedItem.analysis.style}
+                  {selectedItem.analysis.product_type} | {selectedItem.analysis.color_main} | {selectedItem.analysis.silhouette}
                 </p>
               </div>
             </div>

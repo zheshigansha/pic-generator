@@ -16,7 +16,9 @@ import type { ClothingItemDB } from '@/components/types'
 interface ProductAnalysis {
   product_type: string
   color_main: string
+  color_main_hex: string
   color_accents: string
+  color_accents_hex: string
   material_texture: string
   logo_position: string
   logo_style: string
@@ -28,7 +30,9 @@ interface ProductAnalysis {
 const defaultAnalysis: ProductAnalysis = {
   product_type: '',
   color_main: '',
+  color_main_hex: '',
   color_accents: '',
+  color_accents_hex: '',
   material_texture: '',
   logo_position: '',
   logo_style: '',
@@ -78,7 +82,9 @@ export default function AnalysisPage() {
           setAnalysis({
             product_type: projectAnalysis.product_type || '',
             color_main: (projectAnalysis as any).color_main || '',
+            color_main_hex: (projectAnalysis as any).color_main_hex || '',
             color_accents: (projectAnalysis as any).color_accents || '',
+            color_accents_hex: (projectAnalysis as any).color_accents_hex || '',
             material_texture: (projectAnalysis as any).material_texture || '',
             logo_position: (projectAnalysis as any).logo_position || '',
             logo_style: (projectAnalysis as any).logo_style || '',
@@ -414,13 +420,15 @@ export default function AnalysisPage() {
                               if (data) {
                                 setAnalysis({
                                   product_type: data.product_type || '',
-                                  color_main: data.color_main || '',
-                                  color_accents: data.color_accents || '',
-                                  material_texture: data.material_texture || '',
-                                  logo_position: data.logo_position || '',
-                                  logo_style: data.logo_style || '',
-                                  special_features: data.special_features || [],
-                                  silhouette: data.silhouette || '',
+                                  color_main: (data as any).color_main || '',
+                                  color_main_hex: (data as any).color_main_hex || '',
+                                  color_accents: (data as any).color_accents || '',
+                                  color_accents_hex: (data as any).color_accents_hex || '',
+                                  material_texture: (data as any).material_texture || (data as any).material || '',
+                                  logo_position: (data as any).logo_position || '',
+                                  logo_style: (data as any).logo_style || '',
+                                  special_features: (data as any).special_features || [],
+                                  silhouette: (data as any).silhouette || (data as any).style || '',
                                   description: data.description || '',
                                 })
                               }

@@ -14,6 +14,8 @@ import {
 } from '@/lib/db'
 import { uploadToStorage } from '@/lib/supabase'
 
+import type { ProductAnalysis } from '@/lib/database.types'
+
 const MAX_IMAGES = 20
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
@@ -26,13 +28,7 @@ interface UploadedItem {
   processed_image_data?: string
   processed_image_url?: string | null
   uploaded_at: string
-  analysis?: {
-    product_type: string
-    color: string
-    material: string
-    style: string
-    description: string
-  }
+  analysis?: ProductAnalysis
 }
 
 export default function UploadPage() {

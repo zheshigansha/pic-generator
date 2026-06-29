@@ -29,6 +29,8 @@ interface BrandAsset {
   asset_type: string
   file_name: string | null
   file_url: string
+  file_size: number | null
+  mime_type: string | null
   description: string | null
   usage_count: number
   created_at: string
@@ -225,7 +227,7 @@ export default function BrandPage() {
 
   if (loading) {
     return (
-      <WizardLayout title="品牌设置" description="管理品牌信息和资质材料">
+      <WizardLayout currentStep={0} title="品牌设置" description="管理品牌信息和资质材料">
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-500">加载中...</div>
         </div>
@@ -234,7 +236,7 @@ export default function BrandPage() {
   }
 
   return (
-    <WizardLayout title="品牌设置" description="管理品牌信息和资质材料，为生成图片添加信任背书">
+    <WizardLayout currentStep={0} title="品牌设置" description="管理品牌信息和资质材料，为生成图片添加信任背书">
       {message && (
         <div className={`mb-4 p-3 rounded-lg text-sm ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
           {message.text}
