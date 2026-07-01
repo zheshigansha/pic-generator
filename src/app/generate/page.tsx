@@ -43,6 +43,9 @@ export default function GeneratePage() {
   const [selectedFormat, setSelectedFormat] = useState<string>('')
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>('3:4')
 
+  // Brand watermark toggle
+  const [embedBrand, setEmbedBrand] = useState(false)
+
   // Load platform configs on mount
   useEffect(() => {
     const loadPlatformConfigs = async () => {
@@ -95,6 +98,9 @@ export default function GeneratePage() {
     }
     loadData()
   }, [project])
+
+  // Get unique platforms from configs
+  const platforms = Array.from(new Set(platformConfigs.map(c => c.platform)))
 
   // Get available formats for selected platform
   const availableFormats = platformConfigs
@@ -293,6 +299,47 @@ export default function GeneratePage() {
 
       if (newImages.length > 0) {
         await saveGeneratedImages(project.id, newImages)
+
+        // Apply brand watermark if enabled
+        if (embedBrand) {
+          const savedWithIds = await getGeneratedImages(project.id)
+          const newSavedImages = savedWithIds.filter(
+            (img: GeneratedImage) => !generatedImages.some(g => g.id === img.id)
+          )
+
+          setProgress({
+            current: 0,
+            total: newSavedImages.length,
+            message: '正在嵌入品牌信息...',
+          })
+
+          for (let i = 0; i < newSavedImages.length; i++) {
+            setProgress({
+              current: i + 1,
+              total: newSavedImages.length,
+              message: `嵌入品牌信息 (${i + 1}/${newSavedImages.length})`,
+            })
+
+            try {
+              const wmRes = await fetch('/api/watermark', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ imageUrl: newSavedImages[i].url }),
+              })
+
+              if (wmRes.ok) {
+                const wmData = await wmRes.json()
+                // Update the image URL with watermarked version
+                newSavedImages[i] = { ...newSavedImages[i], url: wmData.url }
+              }
+            } catch (e) {
+              console.error('Watermark failed for image:', newSavedImages[i].id, e)
+            }
+          }
+
+          // Re-save with updated URLs
+          await saveGeneratedImages(project.id, newSavedImages)
+        }
       }
 
       const savedImages = await getGeneratedImages(project.id)
@@ -357,7 +404,7 @@ export default function GeneratePage() {
             <div>
               <label className="text-xs text-gray-400 block mb-2">平台</label>
               <div className="flex gap-2">
-                {['facebook'].map(p => (
+                {platforms.map(p => (
                   <button
                     key={p}
                     onClick={() => {
@@ -372,7 +419,10 @@ export default function GeneratePage() {
                         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                     }`}
                   >
-                    {p === 'facebook' ? 'Facebook' : p}
+                    {p === 'facebook' ? 'Facebook' :
+                     p === 'instagram' ? 'Instagram' :
+                     p === 'tiktok' ? 'TikTok' :
+                     p === 'youtube' ? 'YouTube' : p}
                   </button>
                 ))}
               </div>
@@ -412,6 +462,22 @@ export default function GeneratePage() {
                 </p>
               </div>
             )}
+
+            {/* Brand embed toggle */}
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-xs text-gray-400 cursor-pointer select-none" htmlFor="embed-brand-toggle">
+                嵌入品牌信息
+              </label>
+              <button
+                id="embed-brand-toggle"
+                onClick={() => setEmbedBrand(!embedBrand)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${embedBrand ? 'bg-purple-600' : 'bg-gray-600'}`}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${embedBrand ? 'left-5 translate-x-0' : 'left-0.5'}`}
+                />
+              </button>
+            </div>
           </div>
         </div>
 
